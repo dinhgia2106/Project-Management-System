@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     task TEXT NOT NULL DEFAULT '',
     owner TEXT NOT NULL DEFAULT '',
     assign TEXT NOT NULL DEFAULT '',
+    user_story TEXT NOT NULL DEFAULT '',
+    acceptance_criteria TEXT NOT NULL DEFAULT '',
     status task_status NOT NULL DEFAULT 'Not Started',
     create_date DATE NOT NULL DEFAULT CURRENT_DATE,
     estimate_date DATE,

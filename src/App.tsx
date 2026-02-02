@@ -277,6 +277,8 @@ function App() {
           task: task.task || '',
           owner: task.owner || '',
           assign: task.assign || '',
+          user_story: task.user_story || '',
+          acceptance_criteria: task.acceptance_criteria || '',
           status: task.status || 'Not Started',
           create_date: task.create_date || new Date().toISOString().split('T')[0],
           estimate_date: task.estimate_date || null,
@@ -307,6 +309,8 @@ function App() {
           task: task.task,
           owner: task.owner,
           assign: task.assign,
+          user_story: task.user_story,
+          acceptance_criteria: task.acceptance_criteria,
           status: task.status,
           estimate_date: task.estimate_date || null,
           notes: task.notes,
@@ -493,6 +497,8 @@ function App() {
               key={group.id}
               group={group}
               tasks={getTasksForGroup(group.id)}
+              currentUser={user}
+              userRole={user?.role || 'member'}
               onAddTask={handleAddTask}
               onDeleteTask={handleDeleteTask}
               onUpdateTask={handleUpdateTask}

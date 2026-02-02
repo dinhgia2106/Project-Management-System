@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import type { Task, TaskGroup as TaskGroupType, TaskStatus } from '../types';
+import type { Task, TaskGroup as TaskGroupType, TaskStatus, User, UserRole } from '../types';
 import { formatDate, STATUS_COLORS, STATUS_OPTIONS } from '../utils/helpers';
 
 interface TaskGroupProps {
     group: TaskGroupType;
     tasks: Task[];
+    currentUser: User | null;
+    userRole: UserRole;
     onAddTask: (task: Task) => void;
     onDeleteTask: (taskId: string) => void;
     onUpdateTask: (task: Task) => void;
@@ -45,9 +47,10 @@ interface EditableCellProps {
     placeholder?: string;
     type?: 'text' | 'date';
     autoFocus?: boolean;
+    disabled?: boolean;
 }
 
-const EditableCell: React.FC<EditableCellProps> = ({ value, onChange, placeholder, type = 'text', autoFocus }) => {
+const EditableCell: React.FC<EditableCellProps> = ({ value, onChange, placeholder, type = 'text', autoFocus, disabled }) => {
     const [isEditing, setIsEditing] = useState(autoFocus || false);
     const [tempValue, setTempValue] = useState(value);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +82,14 @@ const EditableCell: React.FC<EditableCellProps> = ({ value, onChange, placeholde
         }
     };
 
+    if (disabled) {
+        return (
+            <div className="editable-cell disabled" style={{ cursor: 'not-allowed', opacity: 0.6 }}>
+                {value || <span style={{ color: 'var(--text-muted)' }}>{placeholder || '-'}</span>}
+            </div>
+        );
+    }
+
     if (isEditing) {
         return (
             <input
@@ -105,13 +116,14 @@ const EditableCell: React.FC<EditableCellProps> = ({ value, onChange, placeholde
     );
 };
 
-// Custom Status Dropdown with colored options
+// Custom Status Dropdown with colored options and permission control
 interface StatusDropdownProps {
     value: TaskStatus;
     onChange: (status: TaskStatus) => void;
+    canSelectDone: boolean;
 }
 
-const StatusDropdown: React.FC<StatusDropdownProps> = ({ value, onChange }) => {
+const StatusDropdown: React.FC<StatusDropdownProps> = ({ value, onChange, canSelectDone }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -126,9 +138,20 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({ value, onChange }) => {
     }, []);
 
     const handleSelect = (status: TaskStatus) => {
+        // Only allow selecting "Done" if user has permission
+        if (status === 'Done' && !canSelectDone) {
+            alert('Only the reviewer can mark task as Done');
+            return;
+        }
         onChange(status);
         setIsOpen(false);
     };
+
+    // Filter options - hide Done if user cannot select it
+    const availableOptions = STATUS_OPTIONS.filter(status => {
+        if (status === 'Done' && !canSelectDone) return false;
+        return true;
+    });
 
     return (
         <div className="status-dropdown" ref={dropdownRef}>
@@ -144,7 +167,7 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({ value, onChange }) => {
             </div>
             {isOpen && (
                 <div className="status-dropdown-menu">
-                    {STATUS_OPTIONS.map(status => (
+                    {availableOptions.map(status => (
                         <div
                             key={status}
                             className="status-dropdown-option"
@@ -166,6 +189,8 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({ value, onChange }) => {
 export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     group,
     tasks,
+    currentUser,
+    userRole,
     onAddTask,
     onDeleteTask,
     onUpdateTask,
@@ -184,6 +209,8 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     const [expanded, setExpanded] = useState(isExpanded);
     const [newTaskId, setNewTaskId] = useState<string | null>(null);
 
+    const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
+
     const toggleExpand = () => {
         const newExpanded = !expanded;
         setExpanded(newExpanded);
@@ -196,6 +223,8 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
             task: '',
             owner: '',
             assign: '',
+            user_story: '',
+            acceptance_criteria: '',
             status: 'Not Started',
             create_date: new Date().toISOString().split('T')[0],
             estimate_date: null,
@@ -212,6 +241,22 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
 
     const handleStatusChange = (task: Task, newStatus: TaskStatus) => {
         onUpdateTask({ ...task, status: newStatus });
+    };
+
+    // Check if current user can edit reviewer field (admin/mod only)
+    const canEditReviewer = isAdminOrMod;
+
+    // Check if current user can edit review field (only assigned reviewer)
+    const canEditReview = (task: Task): boolean => {
+        if (!currentUser) return false;
+        // Reviewer can edit their own review
+        return task.reviewer.toLowerCase() === currentUser.username.toLowerCase();
+    };
+
+    // Check if current user can select "Done" status (only reviewer)
+    const canSelectDone = (task: Task): boolean => {
+        if (!currentUser) return false;
+        return task.reviewer.toLowerCase() === currentUser.username.toLowerCase();
     };
 
     const formatGroupDates = () => {
@@ -290,6 +335,8 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                 <th className="col-task">Task</th>
                                 <th className="col-owner">Owner</th>
                                 <th className="col-assign">Assign</th>
+                                <th className="col-story">User Story</th>
+                                <th className="col-criteria">Acceptance Criteria</th>
                                 <th className="col-status">Status</th>
                                 <th className="col-date">Create date</th>
                                 <th className="col-date">Estimate date</th>
@@ -361,9 +408,24 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                         )}
                                     </td>
                                     <td>
+                                        <EditableCell
+                                            value={task.user_story || ''}
+                                            onChange={v => handleFieldChange(task, 'user_story', v)}
+                                            placeholder="User story..."
+                                        />
+                                    </td>
+                                    <td>
+                                        <EditableCell
+                                            value={task.acceptance_criteria || ''}
+                                            onChange={v => handleFieldChange(task, 'acceptance_criteria', v)}
+                                            placeholder="Acceptance criteria..."
+                                        />
+                                    </td>
+                                    <td>
                                         <StatusDropdown
                                             value={task.status}
                                             onChange={newStatus => handleStatusChange(task, newStatus)}
+                                            canSelectDone={canSelectDone(task)}
                                         />
                                     </td>
                                     <td>
@@ -385,28 +447,49 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                         />
                                     </td>
                                     <td>
-                                        {task.reviewer ? (
-                                            <div
-                                                className="avatar"
-                                                style={{ backgroundColor: getAvatarColor(task.reviewer) }}
-                                                title={task.reviewer}
-                                                onClick={() => {
-                                                    const name = prompt('Reviewer:', task.reviewer);
-                                                    if (name !== null) handleFieldChange(task, 'reviewer', name);
-                                                }}
-                                            >
-                                                {getInitials(task.reviewer)}
-                                            </div>
+                                        {canEditReviewer ? (
+                                            task.reviewer ? (
+                                                <div
+                                                    className="avatar"
+                                                    style={{ backgroundColor: getAvatarColor(task.reviewer) }}
+                                                    title={task.reviewer}
+                                                    onClick={() => {
+                                                        const name = prompt('Reviewer:', task.reviewer);
+                                                        if (name !== null) handleFieldChange(task, 'reviewer', name);
+                                                    }}
+                                                >
+                                                    {getInitials(task.reviewer)}
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className="avatar avatar-placeholder"
+                                                    onClick={() => {
+                                                        const name = prompt('Reviewer:');
+                                                        if (name) handleFieldChange(task, 'reviewer', name);
+                                                    }}
+                                                >
+                                                    ?
+                                                </div>
+                                            )
                                         ) : (
-                                            <div
-                                                className="avatar avatar-placeholder"
-                                                onClick={() => {
-                                                    const name = prompt('Reviewer:');
-                                                    if (name) handleFieldChange(task, 'reviewer', name);
-                                                }}
-                                            >
-                                                ?
-                                            </div>
+                                            // Non-admin/mod can only view
+                                            task.reviewer ? (
+                                                <div
+                                                    className="avatar"
+                                                    style={{ backgroundColor: getAvatarColor(task.reviewer), cursor: 'not-allowed' }}
+                                                    title={`${task.reviewer} (Admin/Mod only)`}
+                                                >
+                                                    {getInitials(task.reviewer)}
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className="avatar avatar-placeholder"
+                                                    style={{ cursor: 'not-allowed' }}
+                                                    title="Admin/Mod only"
+                                                >
+                                                    -
+                                                </div>
+                                            )
                                         )}
                                     </td>
                                     <td>
@@ -414,6 +497,7 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                             value={task.review}
                                             onChange={v => handleFieldChange(task, 'review', v)}
                                             placeholder="Review..."
+                                            disabled={!canEditReview(task)}
                                         />
                                     </td>
                                     <td>
@@ -433,7 +517,7 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                             ))}
                             {/* Add task row */}
                             <tr className="add-task-row-table" onClick={handleAddEmptyRow}>
-                                <td colSpan={10}>
+                                <td colSpan={12}>
                                     <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>+ Add task</span>
                                 </td>
                             </tr>

@@ -38,6 +38,8 @@ export interface Task {
     task: string;
     owner: string;
     assign: string;
+    user_story: string;
+    acceptance_criteria: string;
     status: TaskStatus;
     create_date: string;
     estimate_date: string | null;
