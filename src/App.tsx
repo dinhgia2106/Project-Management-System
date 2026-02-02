@@ -1,16 +1,27 @@
 import React, { useState, useMemo } from 'react';
-import type { Task, TaskGroup, TaskStatus } from './types';
+import type { TaskStatus, LegacyTask, LegacyTaskGroup } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { createEmptyGroup } from './utils/helpers';
 import { TaskGroupComponent } from './components/TaskGroup';
 import { GroupModal } from './components/GroupModal';
+import { AdminPanel } from './pages/AdminPanel';
+import { AuditLogPage } from './pages/AuditLogPage';
+import { useAuth } from './contexts/AuthContext';
+
+// Use legacy types while we transition to Supabase
+type Task = LegacyTask;
+type TaskGroup = LegacyTaskGroup;
 
 function App() {
+  const { user, signOut, isAdmin, isMod } = useAuth();
+
   const [tasks, setTasks] = useLocalStorage<Task[]>('scrum-tasks', []);
   const [groups, setGroups] = useLocalStorage<TaskGroup[]>('scrum-groups', []);
 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<TaskGroup | null>(null);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isAuditLogOpen, setIsAuditLogOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'All'>('All');
@@ -186,6 +197,12 @@ function App() {
     e.target.value = '';
   };
 
+  const getRoleBadge = () => {
+    if (isAdmin) return <span className="role-badge role-admin">Admin</span>;
+    if (isMod) return <span className="role-badge role-mod">Mod</span>;
+    return <span className="role-badge role-member">Member</span>;
+  };
+
   return (
     <div className="app" onDragEnd={handleDragEnd}>
       <header className="header">
@@ -193,6 +210,26 @@ function App() {
           <h1>Project Management</h1>
         </div>
         <div className="header-actions">
+          <div className="user-info">
+            <span className="user-name">{user?.username}</span>
+            {getRoleBadge()}
+          </div>
+          {isAdmin && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => setIsAdminPanelOpen(true)}
+            >
+              Users
+            </button>
+          )}
+          {(isAdmin || isMod) && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => setIsAuditLogOpen(true)}
+            >
+              Audit Log
+            </button>
+          )}
           <label className="btn btn-secondary">
             Import
             <input
@@ -204,6 +241,9 @@ function App() {
           </label>
           <button className="btn btn-secondary" onClick={handleExport}>
             Export
+          </button>
+          <button className="btn btn-ghost" onClick={signOut}>
+            Sign Out
           </button>
         </div>
       </header>
@@ -274,6 +314,14 @@ function App() {
         }}
         onSave={handleSaveGroup}
       />
+
+      {isAdminPanelOpen && (
+        <AdminPanel onClose={() => setIsAdminPanelOpen(false)} />
+      )}
+
+      {isAuditLogOpen && (
+        <AuditLogPage onClose={() => setIsAuditLogOpen(false)} />
+      )}
     </div>
   );
 }
