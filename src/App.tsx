@@ -1,74 +1,87 @@
 import React, { useState, useMemo } from 'react';
-import type { Task, TaskStatus } from './types';
+import type { Task, TaskGroup, TaskStatus } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { createEmptyTask, STATUS_OPTIONS } from './utils/helpers';
-import { TaskTable } from './components/TaskTable';
+import { createEmptyTask, createEmptyGroup } from './utils/helpers';
+import { TaskGroupComponent } from './components/TaskGroup';
 import { TaskModal } from './components/TaskModal';
+import { GroupModal } from './components/GroupModal';
 
 function App() {
   const [tasks, setTasks] = useLocalStorage<Task[]>('scrum-tasks', []);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [groups, setGroups] = useLocalStorage<TaskGroup[]>('scrum-groups', []);
+
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingGroup, setEditingGroup] = useState<TaskGroup | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'All'>('All');
-  const [sortField, setSortField] = useState<keyof Task | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  const filteredAndSortedTasks = useMemo(() => {
+  const filteredTasks = useMemo(() => {
     let result = [...tasks];
 
-    // Filter by search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(task =>
         task.task.toLowerCase().includes(query) ||
-        task.userStory.toLowerCase().includes(query) ||
         task.owner.toLowerCase().includes(query) ||
         task.assign.toLowerCase().includes(query) ||
         task.notes.toLowerCase().includes(query)
       );
     }
 
-    // Filter by status
     if (filterStatus !== 'All') {
       result = result.filter(task => task.status === filterStatus);
     }
 
-    // Sort
-    if (sortField) {
-      result.sort((a, b) => {
-        const aValue = a[sortField];
-        const bValue = b[sortField];
-
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          const comparison = aValue.localeCompare(bValue);
-          return sortDirection === 'asc' ? comparison : -comparison;
-        }
-        return 0;
-      });
-    }
-
     return result;
-  }, [tasks, searchQuery, filterStatus, sortField, sortDirection]);
+  }, [tasks, searchQuery, filterStatus]);
 
-  const stats = useMemo(() => {
-    return {
-      total: tasks.length,
-      todo: tasks.filter(t => t.status === 'To Do').length,
-      inProgress: tasks.filter(t => t.status === 'In Progress').length,
-      inReview: tasks.filter(t => t.status === 'In Review').length,
-      done: tasks.filter(t => t.status === 'Done').length
-    };
-  }, [tasks]);
+  const getTasksForGroup = (groupId: string) => {
+    return filteredTasks.filter(task => task.groupId === groupId);
+  };
 
-  const handleAddTask = () => {
-    setEditingTask(createEmptyTask());
-    setIsModalOpen(true);
+  // Group handlers
+  const handleAddGroup = () => {
+    setEditingGroup(createEmptyGroup());
+    setIsGroupModalOpen(true);
+  };
+
+  const handleSaveGroup = (group: TaskGroup) => {
+    const existingIndex = groups.findIndex(g => g.id === group.id);
+    if (existingIndex >= 0) {
+      const newGroups = [...groups];
+      newGroups[existingIndex] = group;
+      setGroups(newGroups);
+    } else {
+      setGroups([...groups, group]);
+    }
+    setIsGroupModalOpen(false);
+    setEditingGroup(null);
+  };
+
+  const handleUpdateGroup = (group: TaskGroup) => {
+    const newGroups = groups.map(g => g.id === group.id ? group : g);
+    setGroups(newGroups);
+  };
+
+  const handleDeleteGroup = (groupId: string) => {
+    if (window.confirm('Delete this group and all its tasks?')) {
+      setGroups(groups.filter(g => g.id !== groupId));
+      setTasks(tasks.filter(t => t.groupId !== groupId));
+    }
+  };
+
+  // Task handlers
+  const handleAddTask = (groupId: string) => {
+    setEditingTask(createEmptyTask(groupId));
+    setIsTaskModalOpen(true);
   };
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task);
-    setIsModalOpen(true);
+    setIsTaskModalOpen(true);
   };
 
   const handleSaveTask = (task: Task) => {
@@ -80,32 +93,28 @@ function App() {
     } else {
       setTasks([...tasks, task]);
     }
-    setIsModalOpen(false);
+    setIsTaskModalOpen(false);
     setEditingTask(null);
   };
 
+  const handleUpdateTask = (task: Task) => {
+    const newTasks = tasks.map(t => t.id === task.id ? task : t);
+    setTasks(newTasks);
+  };
+
   const handleDeleteTask = (taskId: string) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      setTasks(tasks.filter(t => t.id !== taskId));
-    }
+    setTasks(tasks.filter(t => t.id !== taskId));
   };
 
-  const handleSort = (field: keyof Task) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
+  // Export/Import
   const handleExport = () => {
-    const dataStr = JSON.stringify(tasks, null, 2);
+    const data = { groups, tasks };
+    const dataStr = JSON.stringify(data, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `scrum-tasks-${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `scrum-project-${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -117,8 +126,9 @@ function App() {
       reader.onload = (event) => {
         try {
           const imported = JSON.parse(event.target?.result as string);
-          if (Array.isArray(imported)) {
-            setTasks(imported);
+          if (imported.groups && imported.tasks) {
+            setGroups(imported.groups);
+            setTasks(imported.tasks);
           }
         } catch (error) {
           alert('Invalid JSON file');
@@ -132,7 +142,9 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Scrum Project Management</h1>
+        <div className="header-left">
+          <h1>Project Management</h1>
+        </div>
         <div className="header-actions">
           <label className="btn btn-secondary">
             Import
@@ -146,75 +158,78 @@ function App() {
           <button className="btn btn-secondary" onClick={handleExport}>
             Export
           </button>
-          <button className="btn btn-primary" onClick={handleAddTask}>
-            + Add Task
-          </button>
         </div>
       </header>
 
-      <div className="stats-bar">
-        <div className="stat-item">
-          <span>Total:</span>
-          <span className="stat-count">{stats.total}</span>
-        </div>
-        <div className="stat-item">
-          <span>To Do:</span>
-          <span className="stat-count">{stats.todo}</span>
-        </div>
-        <div className="stat-item">
-          <span>In Progress:</span>
-          <span className="stat-count">{stats.inProgress}</span>
-        </div>
-        <div className="stat-item">
-          <span>In Review:</span>
-          <span className="stat-count">{stats.inReview}</span>
-        </div>
-        <div className="stat-item">
-          <span>Done:</span>
-          <span className="stat-count">{stats.done}</span>
-        </div>
-      </div>
-
       <div className="toolbar">
+        <button className="btn btn-primary" onClick={handleAddGroup}>
+          + New Group
+        </button>
         <div className="search-box">
           <input
             type="text"
-            placeholder="Search tasks..."
+            placeholder="Search..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
         </div>
         <select
-          className="filter-select"
+          className="btn btn-secondary"
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value as TaskStatus | 'All')}
         >
           <option value="All">All Status</option>
-          {STATUS_OPTIONS.map(status => (
-            <option key={status} value={status}>{status}</option>
-          ))}
+          <option value="Not Started">Not Started</option>
+          <option value="Working on it">Working on it</option>
+          <option value="In Review">In Review</option>
+          <option value="Done">Done</option>
         </select>
       </div>
 
-      <div className="table-container">
-        <TaskTable
-          tasks={filteredAndSortedTasks}
-          onEdit={handleEditTask}
-          onDelete={handleDeleteTask}
-          sortField={sortField}
-          sortDirection={sortDirection}
-          onSort={handleSort}
-        />
+      <div className="main-content">
+        {groups.length === 0 ? (
+          <div className="empty-state">
+            <h3>No groups yet</h3>
+            <p>Create your first group to start managing tasks</p>
+            <button className="btn btn-primary" onClick={handleAddGroup}>
+              + Create Group
+            </button>
+          </div>
+        ) : (
+          groups.map(group => (
+            <TaskGroupComponent
+              key={group.id}
+              group={group}
+              tasks={getTasksForGroup(group.id)}
+              onAddTask={handleAddTask}
+              onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
+              onUpdateTask={handleUpdateTask}
+              onUpdateGroup={handleUpdateGroup}
+              onDeleteGroup={handleDeleteGroup}
+            />
+          ))
+        )}
       </div>
 
       <TaskModal
         task={editingTask}
-        isOpen={isModalOpen}
+        isOpen={isTaskModalOpen}
         onClose={() => {
-          setIsModalOpen(false);
+          setIsTaskModalOpen(false);
           setEditingTask(null);
         }}
         onSave={handleSaveTask}
+      />
+
+      <GroupModal
+        group={editingGroup}
+        isOpen={isGroupModalOpen}
+        onClose={() => {
+          setIsGroupModalOpen(false);
+          setEditingGroup(null);
+        }}
+        onSave={handleSaveGroup}
       />
     </div>
   );

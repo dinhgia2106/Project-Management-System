@@ -1,4 +1,4 @@
-export type TaskStatus = 'To Do' | 'In Progress' | 'In Review' | 'Done';
+export type TaskStatus = 'Not Started' | 'Working on it' | 'In Review' | 'Done';
 
 export interface TaskFile {
     id: string;
@@ -10,9 +10,8 @@ export interface TaskFile {
 
 export interface Task {
     id: string;
+    groupId: string;
     task: string;
-    userStory: string;
-    acceptanceCriteria: string;
     owner: string;
     assign: string;
     status: TaskStatus;
@@ -24,9 +23,11 @@ export interface Task {
     review: string;
 }
 
-export interface Column {
-    key: keyof Task;
-    label: string;
-    width: number;
-    minWidth: number;
+export interface TaskGroup {
+    id: string;
+    name: string;
+    color: string;
+    startDate: string;
+    endDate: string;
+    isExpanded: boolean;
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Task } from '../types';
+import { STATUS_OPTIONS } from '../utils/helpers';
 
 interface TaskModalProps {
     task: Task | null;
@@ -56,8 +57,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
 
     const formatDateForInput = (dateString: string): string => {
         if (!dateString) return '';
-        const date = new Date(dateString);
-        return date.toISOString().split('T')[0];
+        try {
+            const date = new Date(dateString);
+            return date.toISOString().split('T')[0];
+        } catch {
+            return '';
+        }
     };
 
     return (
@@ -65,7 +70,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
             <div className="modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <h2>{task?.task ? 'Edit Task' : 'New Task'}</h2>
-                    <button className="btn-icon" onClick={onClose}>X</button>
+                    <button className="btn btn-ghost" onClick={onClose}>X</button>
                 </div>
 
                 <form onSubmit={handleSubmit}>
@@ -79,26 +84,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
                                     onChange={e => handleChange('task', e.target.value)}
                                     placeholder="Enter task name"
                                     required
-                                />
-                            </div>
-
-                            <div className="form-group full-width">
-                                <label>User Story</label>
-                                <textarea
-                                    value={formData.userStory}
-                                    onChange={e => handleChange('userStory', e.target.value)}
-                                    placeholder="As a [user], I want [feature] so that [benefit]"
-                                    rows={2}
-                                />
-                            </div>
-
-                            <div className="form-group full-width">
-                                <label>Acceptance Criteria</label>
-                                <textarea
-                                    value={formData.acceptanceCriteria}
-                                    onChange={e => handleChange('acceptanceCriteria', e.target.value)}
-                                    placeholder="What criteria must be met?"
-                                    rows={3}
+                                    autoFocus
                                 />
                             </div>
 
@@ -128,10 +114,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
                                     value={formData.status}
                                     onChange={e => handleChange('status', e.target.value)}
                                 >
-                                    <option value="To Do">To Do</option>
-                                    <option value="In Progress">In Progress</option>
-                                    <option value="In Review">In Review</option>
-                                    <option value="Done">Done</option>
+                                    {STATUS_OPTIONS.map(status => (
+                                        <option key={status} value={status}>{status}</option>
+                                    ))}
                                 </select>
                             </div>
 
@@ -155,12 +140,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
                             </div>
 
                             <div className="form-group">
-                                <label>Review Status</label>
+                                <label>Review</label>
                                 <input
                                     type="text"
                                     value={formData.review}
                                     onChange={e => handleChange('review', e.target.value)}
-                                    placeholder="Review comments"
+                                    placeholder="Review status"
                                 />
                             </div>
 
@@ -175,23 +160,41 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
                             </div>
 
                             <div className="form-group full-width">
-                                <label>Files</label>
-                                <label className="file-upload">
-                                    <input
-                                        type="file"
-                                        multiple
-                                        onChange={handleFileChange}
-                                    />
-                                    <span className="file-upload-text">
-                                        Click to upload files or drag and drop
-                                    </span>
-                                </label>
+                                <label>Files ({formData.files.length})</label>
+                                <input
+                                    type="file"
+                                    multiple
+                                    onChange={handleFileChange}
+                                    style={{ padding: '8px' }}
+                                />
                                 {formData.files.length > 0 && (
-                                    <div className="uploaded-files">
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
                                         {formData.files.map(file => (
-                                            <div key={file.id} className="uploaded-file">
+                                            <div
+                                                key={file.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '4px 8px',
+                                                    background: 'var(--bg-tertiary)',
+                                                    borderRadius: '4px',
+                                                    fontSize: '12px'
+                                                }}
+                                            >
                                                 <span>{file.name}</span>
-                                                <button type="button" onClick={() => removeFile(file.id)}>x</button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeFile(file.id)}
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        color: 'var(--accent-red)',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    x
+                                                </button>
                                             </div>
                                         ))}
                                     </div>
