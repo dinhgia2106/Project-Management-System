@@ -8,6 +8,7 @@ interface RegisterPageProps {
 export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
     const { signUp, loading, error } = useAuth();
     const [username, setUsername] = useState('');
+    const [displayName, setDisplayName] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [inviteCode, setInviteCode] = useState('');
@@ -49,7 +50,12 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
         }
 
         setIsSubmitting(true);
-        const result = await signUp(username.trim(), password, inviteCode.trim() || undefined);
+        const result = await signUp(
+            username.trim(),
+            password,
+            displayName.trim() || username.trim(),
+            inviteCode.trim() || undefined
+        );
         setIsSubmitting(false);
 
         if (result.error) {
@@ -64,6 +70,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             }
             // Clear form
             setUsername('');
+            setDisplayName('');
             setPassword('');
             setConfirmPassword('');
             setInviteCode('');
@@ -84,10 +91,25 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder="Choose a username"
+                            placeholder="Choose a username (for login)"
                             autoComplete="username"
                             disabled={isSubmitting}
                         />
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="displayName">Display Name</label>
+                        <input
+                            id="displayName"
+                            type="text"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            placeholder="Your full name"
+                            disabled={isSubmitting}
+                        />
+                        <small className="form-hint">
+                            This name will be shown in avatars and dropdowns
+                        </small>
                     </div>
 
                     <div className="form-group">

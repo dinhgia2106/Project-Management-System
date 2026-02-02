@@ -7,7 +7,7 @@ interface AuthContextType {
     loading: boolean;
     error: string | null;
     signIn: (username: string, password: string) => Promise<{ error: string | null }>;
-    signUp: (username: string, password: string, inviteCode?: string) => Promise<{ error: string | null }>;
+    signUp: (username: string, password: string, displayName?: string, inviteCode?: string) => Promise<{ error: string | null }>;
     signOut: () => void;
     refreshUser: () => Promise<void>;
     isAdmin: boolean;
@@ -148,10 +148,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    // Sign up with username, password, and optional invite code
+    // Sign up with username, password, display name, and optional invite code
     const signUp = async (
         username: string,
         password: string,
+        displayName?: string,
         inviteCode?: string
     ): Promise<{ error: string | null }> => {
         try {
@@ -182,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .rpc('register_user', {
                     p_username: username,
                     p_password: password,
+                    p_display_name: displayName || username,
                     p_role: role,
                     p_status: status,
                 });

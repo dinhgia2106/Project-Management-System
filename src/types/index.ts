@@ -13,6 +13,7 @@ export type EntityType = 'task' | 'group' | 'user' | 'task_file';
 export interface User {
     id: string;
     username: string;
+    display_name: string;
     role: UserRole;
     status: UserStatus;
     created_at: string;

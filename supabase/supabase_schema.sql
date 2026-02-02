@@ -45,6 +45,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
     password_hash TEXT NOT NULL,
     role user_role NOT NULL DEFAULT 'member',
     status user_status NOT NULL DEFAULT 'pending',
@@ -184,28 +185,29 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION register_user(
     p_username TEXT,
     p_password TEXT,
+    p_display_name TEXT DEFAULT '',
     p_role user_role DEFAULT 'member',
     p_status user_status DEFAULT 'pending'
 )
-RETURNS TABLE(id UUID, username TEXT, role user_role, status user_status) AS $$
+RETURNS TABLE(id UUID, username TEXT, display_name TEXT, role user_role, status user_status) AS $$
 DECLARE
     v_user_id UUID;
 BEGIN
-    INSERT INTO public.users (username, password_hash, role, status)
-    VALUES (p_username, hash_password(p_password), p_role, p_status)
+    INSERT INTO public.users (username, display_name, password_hash, role, status)
+    VALUES (p_username, COALESCE(NULLIF(p_display_name, ''), p_username), hash_password(p_password), p_role, p_status)
     RETURNING users.id INTO v_user_id;
     
-    RETURN QUERY SELECT users.id, users.username, users.role, users.status 
+    RETURN QUERY SELECT users.id, users.username, users.display_name, users.role, users.status 
     FROM public.users WHERE users.id = v_user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to login user
 CREATE OR REPLACE FUNCTION login_user(p_username TEXT, p_password TEXT)
-RETURNS TABLE(id UUID, username TEXT, role user_role, status user_status) AS $$
+RETURNS TABLE(id UUID, username TEXT, display_name TEXT, role user_role, status user_status) AS $$
 BEGIN
     RETURN QUERY 
-    SELECT u.id, u.username, u.role, u.status
+    SELECT u.id, u.username, u.display_name, u.role, u.status
     FROM public.users u
     WHERE u.username = p_username 
       AND verify_password(p_password, u.password_hash);

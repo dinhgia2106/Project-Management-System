@@ -127,6 +127,12 @@ interface UserDropdownProps {
     disabled?: boolean;
 }
 
+// Get display name for a username from users list
+const getDisplayName = (username: string, users: User[]): string => {
+    const user = users.find(u => u.username === username);
+    return user?.display_name || username;
+};
+
 const UserDropdown: React.FC<UserDropdownProps> = ({ value, users, onChange, placeholder = 'Select user', disabled }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -147,6 +153,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ value, users, onChange, pla
     };
 
     const activeUsers = users.filter(u => u.status === 'active');
+    const displayName = value ? getDisplayName(value, users) : '';
 
     if (disabled) {
         return (
@@ -154,10 +161,10 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ value, users, onChange, pla
                 {value ? (
                     <div
                         className="avatar"
-                        style={{ backgroundColor: getAvatarColor(value), opacity: 0.6 }}
-                        title={`${value} (Disabled)`}
+                        style={{ backgroundColor: getAvatarColor(displayName), opacity: 0.6 }}
+                        title={`${displayName} (Disabled)`}
                     >
-                        {getInitials(value)}
+                        {getInitials(displayName)}
                     </div>
                 ) : (
                     <div className="avatar avatar-placeholder" style={{ opacity: 0.6 }}>
@@ -177,10 +184,10 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ value, users, onChange, pla
                 {value ? (
                     <div
                         className="avatar"
-                        style={{ backgroundColor: getAvatarColor(value) }}
-                        title={value}
+                        style={{ backgroundColor: getAvatarColor(displayName) }}
+                        title={displayName}
                     >
-                        {getInitials(value)}
+                        {getInitials(displayName)}
                     </div>
                 ) : (
                     <div className="avatar avatar-placeholder" title={placeholder}>
@@ -209,15 +216,15 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ value, users, onChange, pla
                             <div
                                 className="avatar"
                                 style={{
-                                    backgroundColor: getAvatarColor(user.username),
+                                    backgroundColor: getAvatarColor(user.display_name || user.username),
                                     width: 24,
                                     height: 24,
                                     fontSize: 10
                                 }}
                             >
-                                {getInitials(user.username)}
+                                {getInitials(user.display_name || user.username)}
                             </div>
-                            <span className="user-dropdown-name">{user.username}</span>
+                            <span className="user-dropdown-name">{user.display_name || user.username}</span>
                         </div>
                     ))}
                 </div>
@@ -462,15 +469,18 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                     </td>
                                     <td>
                                         {/* Owner: Display-only avatar of creator */}
-                                        {task.owner ? (
-                                            <div
-                                                className="avatar"
-                                                style={{ backgroundColor: getAvatarColor(task.owner), cursor: 'default' }}
-                                                title={task.owner}
-                                            >
-                                                {getInitials(task.owner)}
-                                            </div>
-                                        ) : (
+                                        {task.owner ? (() => {
+                                            const ownerDisplayName = getDisplayName(task.owner, allUsers);
+                                            return (
+                                                <div
+                                                    className="avatar"
+                                                    style={{ backgroundColor: getAvatarColor(ownerDisplayName), cursor: 'default' }}
+                                                    title={ownerDisplayName}
+                                                >
+                                                    {getInitials(ownerDisplayName)}
+                                                </div>
+                                            );
+                                        })() : (
                                             <div className="avatar avatar-placeholder" style={{ cursor: 'default' }}>
                                                 -
                                             </div>
