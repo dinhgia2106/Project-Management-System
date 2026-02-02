@@ -16,6 +16,9 @@ interface TaskGroupProps {
     onEditGroup: (group: TaskGroupType) => void;
     canDeleteTask: boolean;
     canDeleteGroup: boolean;
+    // Lock field handlers
+    onLockField?: (taskId: string, fieldName: string) => void;
+    onUnlockField?: (taskId: string, fieldName: string) => void;
     // Drag and drop props
     onDragStart?: (e: React.DragEvent, groupId: string) => void;
     onDragOver?: (e: React.DragEvent) => void;
@@ -116,6 +119,54 @@ const EditableCell: React.FC<EditableCellProps> = ({ value, onChange, placeholde
             style={{ cursor: 'text', minHeight: '20px' }}
         >
             {value || <span style={{ color: 'var(--text-muted)' }}>{placeholder || '-'}</span>}
+        </div>
+    );
+};
+
+// LockableCell wrapper component - shows lock button on hover for admin/mod
+interface LockableCellProps {
+    taskId: string;
+    fieldName: string;
+    isLocked: boolean;
+    isAdminOrMod: boolean;
+    onLock?: (taskId: string, fieldName: string) => void;
+    onUnlock?: (taskId: string, fieldName: string) => void;
+    children: React.ReactNode;
+}
+
+const LockableCell: React.FC<LockableCellProps> = ({
+    taskId,
+    fieldName,
+    isLocked,
+    isAdminOrMod,
+    onLock,
+    onUnlock,
+    children
+}) => {
+    const handleToggleLock = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isLocked) {
+            onUnlock?.(taskId, fieldName);
+        } else {
+            onLock?.(taskId, fieldName);
+        }
+    };
+
+    return (
+        <div className={`lockable-cell ${isLocked ? 'is-locked' : ''}`}>
+            {children}
+            {isAdminOrMod && (
+                <button
+                    className={`lock-btn ${isLocked ? 'locked' : ''}`}
+                    onClick={handleToggleLock}
+                    title={isLocked ? 'Unlock this field' : 'Lock this field'}
+                >
+                    {isLocked ? '\u{1F513}' : '\u{1F512}'}
+                </button>
+            )}
+            {isLocked && !isAdminOrMod && (
+                <span className="lock-indicator" title="This field is locked">{'\u{1F512}'}</span>
+            )}
         </div>
     );
 };
@@ -317,6 +368,8 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     onEditGroup,
     canDeleteTask,
     canDeleteGroup,
+    onLockField,
+    onUnlockField,
     onDragStart,
     onDragOver,
     onDragEnter,
@@ -463,119 +516,201 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                             </tr>
                         </thead>
                         <tbody>
-                            {tasks.map(task => (
-                                <tr key={task.id}>
-                                    <td>
-                                        <EditableCell
-                                            value={task.task}
-                                            onChange={v => handleFieldChange(task, 'task', v)}
-                                            placeholder="Task name..."
-                                            autoFocus={task.id === newTaskId}
-                                        />
-                                    </td>
-                                    <td>
-                                        {/* Owner: Display-only avatar of creator */}
-                                        {task.owner ? (() => {
-                                            const ownerDisplayName = getDisplayName(task.owner, allUsers);
-                                            return (
-                                                <div
-                                                    className="avatar"
-                                                    style={{ backgroundColor: getAvatarColor(ownerDisplayName), cursor: 'default' }}
-                                                    title={ownerDisplayName}
-                                                >
-                                                    {getInitials(ownerDisplayName)}
-                                                </div>
-                                            );
-                                        })() : (
-                                            <div className="avatar avatar-placeholder" style={{ cursor: 'default' }}>
-                                                -
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td>
-                                        {/* Assign: User dropdown */}
-                                        <UserDropdown
-                                            value={task.assign}
-                                            users={allUsers}
-                                            onChange={v => handleFieldChange(task, 'assign', v)}
-                                            placeholder="Assign to..."
-                                        />
-                                    </td>
-                                    <td>
-                                        <EditableCell
-                                            value={task.user_story || ''}
-                                            onChange={v => handleFieldChange(task, 'user_story', v)}
-                                            placeholder="User story..."
-                                        />
-                                    </td>
-                                    <td>
-                                        <EditableCell
-                                            value={task.acceptance_criteria || ''}
-                                            onChange={v => handleFieldChange(task, 'acceptance_criteria', v)}
-                                            placeholder="Acceptance criteria..."
-                                        />
-                                    </td>
-                                    <td>
-                                        <StatusDropdown
-                                            value={task.status}
-                                            onChange={newStatus => handleStatusChange(task, newStatus)}
-                                            canSelectDone={canSelectDone(task)}
-                                        />
-                                    </td>
-                                    <td>
-                                        <span className="date-cell">{formatDate(task.create_date)}</span>
-                                    </td>
-                                    <td>
-                                        <input
-                                            type="date"
-                                            className="date-input"
-                                            value={formatDateForInput(task.estimate_date)}
-                                            onChange={e => handleFieldChange(task, 'estimate_date', e.target.value || null)}
-                                        />
-                                    </td>
-                                    <td>
-                                        <EditableCell
-                                            value={task.notes}
-                                            onChange={v => handleFieldChange(task, 'notes', v)}
-                                            placeholder="Notes..."
-                                        />
-                                    </td>
-                                    <td>
-                                        {/* Reviewer: User dropdown (admin/mod only) */}
-                                        <UserDropdown
-                                            value={task.reviewer}
-                                            users={allUsers}
-                                            onChange={v => handleFieldChange(task, 'reviewer', v)}
-                                            placeholder="Reviewer..."
-                                            disabled={!canEditReviewer}
-                                        />
-                                    </td>
-                                    <td>
-                                        <EditableCell
-                                            value={task.review}
-                                            onChange={v => handleFieldChange(task, 'review', v)}
-                                            placeholder="Review..."
-                                            disabled={!canEditReview(task)}
-                                        />
-                                    </td>
-                                    <td>
-                                        {canDeleteTask && (
-                                            <button
-                                                className="btn btn-ghost btn-sm"
-                                                onClick={() => {
-                                                    if (window.confirm('Are you sure you want to delete this task?')) {
-                                                        onDeleteTask(task.id);
-                                                    }
-                                                }}
-                                                style={{ color: 'var(--accent-red)' }}
+                            {tasks.map(task => {
+                                const isFieldLocked = (field: string) => task.locked_fields?.[field] === true;
+                                const isMemberAndLocked = (field: string) => !isAdminOrMod && isFieldLocked(field);
+
+                                return (
+                                    <tr key={task.id}>
+                                        <td>
+                                            <LockableCell
+                                                taskId={task.id}
+                                                fieldName="task"
+                                                isLocked={isFieldLocked('task')}
+                                                isAdminOrMod={isAdminOrMod}
+                                                onLock={onLockField}
+                                                onUnlock={onUnlockField}
                                             >
-                                                x
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                            {/* Add task row */}
+                                                <EditableCell
+                                                    value={task.task}
+                                                    onChange={v => handleFieldChange(task, 'task', v)}
+                                                    placeholder="Task name..."
+                                                    autoFocus={task.id === newTaskId}
+                                                    disabled={isMemberAndLocked('task')}
+                                                />
+                                            </LockableCell>
+                                        </td>
+                                        <td>
+                                            {/* Owner: Display-only avatar of creator */}
+                                            {task.owner ? (() => {
+                                                const ownerDisplayName = getDisplayName(task.owner, allUsers);
+                                                return (
+                                                    <div
+                                                        className="avatar"
+                                                        style={{ backgroundColor: getAvatarColor(ownerDisplayName), cursor: 'default' }}
+                                                        title={ownerDisplayName}
+                                                    >
+                                                        {getInitials(ownerDisplayName)}
+                                                    </div>
+                                                );
+                                            })() : (
+                                                <div className="avatar avatar-placeholder" style={{ cursor: 'default' }}>
+                                                    -
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td>
+                                            {/* Assign: User dropdown */}
+                                            <LockableCell
+                                                taskId={task.id}
+                                                fieldName="assign"
+                                                isLocked={isFieldLocked('assign')}
+                                                isAdminOrMod={isAdminOrMod}
+                                                onLock={onLockField}
+                                                onUnlock={onUnlockField}
+                                            >
+                                                <UserDropdown
+                                                    value={task.assign}
+                                                    users={allUsers}
+                                                    onChange={v => handleFieldChange(task, 'assign', v)}
+                                                    placeholder="Assign to..."
+                                                    disabled={isMemberAndLocked('assign')}
+                                                />
+                                            </LockableCell>
+                                        </td>
+                                        <td>
+                                            <LockableCell
+                                                taskId={task.id}
+                                                fieldName="user_story"
+                                                isLocked={isFieldLocked('user_story')}
+                                                isAdminOrMod={isAdminOrMod}
+                                                onLock={onLockField}
+                                                onUnlock={onUnlockField}
+                                            >
+                                                <EditableCell
+                                                    value={task.user_story || ''}
+                                                    onChange={v => handleFieldChange(task, 'user_story', v)}
+                                                    placeholder="User story..."
+                                                    disabled={isMemberAndLocked('user_story')}
+                                                />
+                                            </LockableCell>
+                                        </td>
+                                        <td>
+                                            <LockableCell
+                                                taskId={task.id}
+                                                fieldName="acceptance_criteria"
+                                                isLocked={isFieldLocked('acceptance_criteria')}
+                                                isAdminOrMod={isAdminOrMod}
+                                                onLock={onLockField}
+                                                onUnlock={onUnlockField}
+                                            >
+                                                <EditableCell
+                                                    value={task.acceptance_criteria || ''}
+                                                    onChange={v => handleFieldChange(task, 'acceptance_criteria', v)}
+                                                    placeholder="Acceptance criteria..."
+                                                    disabled={isMemberAndLocked('acceptance_criteria')}
+                                                />
+                                            </LockableCell>
+                                        </td>
+                                        <td>
+                                            <LockableCell
+                                                taskId={task.id}
+                                                fieldName="status"
+                                                isLocked={isFieldLocked('status')}
+                                                isAdminOrMod={isAdminOrMod}
+                                                onLock={onLockField}
+                                                onUnlock={onUnlockField}
+                                            >
+                                                <StatusDropdown
+                                                    value={task.status}
+                                                    onChange={newStatus => handleStatusChange(task, newStatus)}
+                                                    canSelectDone={canSelectDone(task)}
+                                                />
+                                            </LockableCell>
+                                        </td>
+                                        <td>
+                                            <span className="date-cell">{formatDate(task.create_date)}</span>
+                                        </td>
+                                        <td>
+                                            <LockableCell
+                                                taskId={task.id}
+                                                fieldName="estimate_date"
+                                                isLocked={isFieldLocked('estimate_date')}
+                                                isAdminOrMod={isAdminOrMod}
+                                                onLock={onLockField}
+                                                onUnlock={onUnlockField}
+                                            >
+                                                <input
+                                                    type="date"
+                                                    className="date-input"
+                                                    value={formatDateForInput(task.estimate_date)}
+                                                    onChange={e => handleFieldChange(task, 'estimate_date', e.target.value || null)}
+                                                    disabled={isMemberAndLocked('estimate_date')}
+                                                />
+                                            </LockableCell>
+                                        </td>
+                                        <td>
+                                            <LockableCell
+                                                taskId={task.id}
+                                                fieldName="notes"
+                                                isLocked={isFieldLocked('notes')}
+                                                isAdminOrMod={isAdminOrMod}
+                                                onLock={onLockField}
+                                                onUnlock={onUnlockField}
+                                            >
+                                                <EditableCell
+                                                    value={task.notes}
+                                                    onChange={v => handleFieldChange(task, 'notes', v)}
+                                                    placeholder="Notes..."
+                                                    disabled={isMemberAndLocked('notes')}
+                                                />
+                                            </LockableCell>
+                                        </td>
+                                        <td>
+                                            {/* Reviewer: User dropdown - lockable */}
+                                            <LockableCell
+                                                taskId={task.id}
+                                                fieldName="reviewer"
+                                                isLocked={isFieldLocked('reviewer')}
+                                                isAdminOrMod={isAdminOrMod}
+                                                onLock={onLockField}
+                                                onUnlock={onUnlockField}
+                                            >
+                                                <UserDropdown
+                                                    value={task.reviewer}
+                                                    users={allUsers}
+                                                    onChange={v => handleFieldChange(task, 'reviewer', v)}
+                                                    placeholder="Reviewer..."
+                                                    disabled={isMemberAndLocked('reviewer')}
+                                                />
+                                            </LockableCell>
+                                        </td>
+                                        <td>
+                                            <EditableCell
+                                                value={task.review}
+                                                onChange={v => handleFieldChange(task, 'review', v)}
+                                                placeholder="Review..."
+                                                disabled={!canEditReview(task)}
+                                            />
+                                        </td>
+                                        <td>
+                                            {canDeleteTask && (
+                                                <button
+                                                    className="btn btn-ghost btn-sm"
+                                                    onClick={() => {
+                                                        if (window.confirm('Are you sure you want to delete this task?')) {
+                                                            onDeleteTask(task.id);
+                                                        }
+                                                    }}
+                                                    style={{ color: 'var(--accent-red)' }}
+                                                >
+                                                    x
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}{/* Add task row */}
                             <tr className="add-task-row-table" onClick={handleAddEmptyRow}>
                                 <td colSpan={12}>
                                     <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>+ Add task</span>

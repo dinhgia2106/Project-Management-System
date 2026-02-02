@@ -362,6 +362,74 @@ function App() {
     }
   };
 
+  // Lock field handler
+  const handleLockField = async (taskId: string, fieldName: string) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const updatedLockedFields = {
+        ...task.locked_fields,
+        [fieldName]: true,
+      };
+
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          locked_fields: updatedLockedFields,
+          locked_by: user?.id,
+        })
+        .eq('id', taskId);
+
+      if (error) {
+        console.error('Error locking field:', error);
+        return;
+      }
+
+      // Update local state immediately
+      setTasks(tasks.map(t =>
+        t.id === taskId
+          ? { ...t, locked_fields: updatedLockedFields, locked_by: user?.id }
+          : t
+      ));
+    } catch (err) {
+      console.error('Error locking field:', err);
+    }
+  };
+
+  // Unlock field handler
+  const handleUnlockField = async (taskId: string, fieldName: string) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const updatedLockedFields = {
+        ...task.locked_fields,
+        [fieldName]: false,
+      };
+
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          locked_fields: updatedLockedFields,
+        })
+        .eq('id', taskId);
+
+      if (error) {
+        console.error('Error unlocking field:', error);
+        return;
+      }
+
+      // Update local state immediately
+      setTasks(tasks.map(t =>
+        t.id === taskId
+          ? { ...t, locked_fields: updatedLockedFields }
+          : t
+      ));
+    } catch (err) {
+      console.error('Error unlocking field:', err);
+    }
+  };
   // Export/Import
   const handleExport = () => {
     const data = { groups, tasks };
@@ -521,6 +589,8 @@ function App() {
               onEditGroup={handleEditGroup}
               canDeleteTask={isAdmin || isMod}
               canDeleteGroup={isAdmin || isMod}
+              onLockField={handleLockField}
+              onUnlockField={handleUnlockField}
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDragEnter={handleDragEnter}
