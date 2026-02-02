@@ -1,18 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import type { Task, TaskGroup, TaskStatus } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { createEmptyTask, createEmptyGroup } from './utils/helpers';
+import { createEmptyGroup } from './utils/helpers';
 import { TaskGroupComponent } from './components/TaskGroup';
-import { TaskModal } from './components/TaskModal';
 import { GroupModal } from './components/GroupModal';
 
 function App() {
   const [tasks, setTasks] = useLocalStorage<Task[]>('scrum-tasks', []);
   const [groups, setGroups] = useLocalStorage<TaskGroup[]>('scrum-groups', []);
 
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editingGroup, setEditingGroup] = useState<TaskGroup | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,27 +71,8 @@ function App() {
   };
 
   // Task handlers
-  const handleAddTask = (groupId: string) => {
-    setEditingTask(createEmptyTask(groupId));
-    setIsTaskModalOpen(true);
-  };
-
-  const handleEditTask = (task: Task) => {
-    setEditingTask(task);
-    setIsTaskModalOpen(true);
-  };
-
-  const handleSaveTask = (task: Task) => {
-    const existingIndex = tasks.findIndex(t => t.id === task.id);
-    if (existingIndex >= 0) {
-      const newTasks = [...tasks];
-      newTasks[existingIndex] = task;
-      setTasks(newTasks);
-    } else {
-      setTasks([...tasks, task]);
-    }
-    setIsTaskModalOpen(false);
-    setEditingTask(null);
+  const handleAddTask = (task: Task) => {
+    setTasks([...tasks, task]);
   };
 
   const handleUpdateTask = (task: Task) => {
@@ -202,7 +180,6 @@ function App() {
               group={group}
               tasks={getTasksForGroup(group.id)}
               onAddTask={handleAddTask}
-              onEditTask={handleEditTask}
               onDeleteTask={handleDeleteTask}
               onUpdateTask={handleUpdateTask}
               onUpdateGroup={handleUpdateGroup}
@@ -211,16 +188,6 @@ function App() {
           ))
         )}
       </div>
-
-      <TaskModal
-        task={editingTask}
-        isOpen={isTaskModalOpen}
-        onClose={() => {
-          setIsTaskModalOpen(false);
-          setEditingTask(null);
-        }}
-        onSave={handleSaveTask}
-      />
 
       <GroupModal
         group={editingGroup}

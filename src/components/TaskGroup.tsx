@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Task, TaskGroup as TaskGroupType, TaskStatus } from '../types';
-import { formatDate, STATUS_COLORS } from '../utils/helpers';
+import { formatDate, STATUS_COLORS, createEmptyTask } from '../utils/helpers';
 
 interface TaskGroupProps {
     group: TaskGroupType;
     tasks: Task[];
-    onAddTask: (groupId: string) => void;
-    onEditTask: (task: Task) => void;
+    onAddTask: (task: Task) => void;
     onDeleteTask: (taskId: string) => void;
     onUpdateTask: (task: Task) => void;
     onUpdateGroup: (group: TaskGroupType) => void;
@@ -32,21 +31,97 @@ const getAvatarColor = (name: string): string => {
     return colors[Math.abs(hash) % colors.length];
 };
 
+interface EditableCellProps {
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    type?: 'text' | 'date';
+    autoFocus?: boolean;
+}
+
+const EditableCell: React.FC<EditableCellProps> = ({ value, onChange, placeholder, type = 'text', autoFocus }) => {
+    const [isEditing, setIsEditing] = useState(autoFocus || false);
+    const [tempValue, setTempValue] = useState(value);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isEditing]);
+
+    useEffect(() => {
+        setTempValue(value);
+    }, [value]);
+
+    const handleBlur = () => {
+        setIsEditing(false);
+        if (tempValue !== value) {
+            onChange(tempValue);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleBlur();
+        }
+        if (e.key === 'Escape') {
+            setTempValue(value);
+            setIsEditing(false);
+        }
+    };
+
+    if (isEditing) {
+        return (
+            <input
+                ref={inputRef}
+                type={type}
+                className="inline-edit"
+                value={tempValue}
+                onChange={e => setTempValue(e.target.value)}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder}
+            />
+        );
+    }
+
+    return (
+        <div
+            className="editable-cell"
+            onClick={() => setIsEditing(true)}
+            style={{ cursor: 'text', minHeight: '20px' }}
+        >
+            {value || <span style={{ color: 'var(--text-muted)' }}>{placeholder || '-'}</span>}
+        </div>
+    );
+};
+
 export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     group,
     tasks,
     onAddTask,
-    onEditTask,
     onDeleteTask,
     onUpdateTask,
     onUpdateGroup,
     onDeleteGroup
 }) => {
     const [isExpanded, setIsExpanded] = useState(group.isExpanded);
+    const [newTaskId, setNewTaskId] = useState<string | null>(null);
 
     const toggleExpand = () => {
         setIsExpanded(!isExpanded);
         onUpdateGroup({ ...group, isExpanded: !isExpanded });
+    };
+
+    const handleAddEmptyRow = () => {
+        const newTask = createEmptyTask(group.id);
+        onAddTask(newTask);
+        setNewTaskId(newTask.id);
+    };
+
+    const handleFieldChange = (task: Task, field: keyof Task, value: string) => {
+        onUpdateTask({ ...task, [field]: value });
     };
 
     const handleStatusChange = (task: Task, newStatus: TaskStatus) => {
@@ -61,11 +136,21 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
         return '';
     };
 
+    const formatDateForInput = (dateString: string): string => {
+        if (!dateString) return '';
+        try {
+            const date = new Date(dateString);
+            return date.toISOString().split('T')[0];
+        } catch {
+            return '';
+        }
+    };
+
     return (
         <div className="task-group">
             <div className="group-header" onClick={toggleExpand}>
                 <span className={`group-expand ${isExpanded ? 'expanded' : ''}`}>
-                    ▶
+                    &gt;
                 </span>
                 <div className="group-color" style={{ backgroundColor: group.color }}></div>
                 <span className="group-name" style={{ color: group.color }}>{group.name}</span>
@@ -80,145 +165,180 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
 
             {isExpanded && (
                 <>
-                    {tasks.length > 0 && (
-                        <table className="group-table">
-                            <thead>
-                                <tr>
-                                    <th className="col-checkbox"></th>
-                                    <th className="col-task">Task</th>
-                                    <th className="col-owner">Owner</th>
-                                    <th className="col-assign">Assign</th>
-                                    <th className="col-status">Status</th>
-                                    <th className="col-date">Create date</th>
-                                    <th className="col-date">Estimate date</th>
-                                    <th className="col-notes">Notes</th>
-                                    <th className="col-files">Files</th>
-                                    <th className="col-reviewer">Reviewer</th>
-                                    <th className="col-review">Review</th>
-                                    <th className="col-actions"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {tasks.map(task => (
-                                    <tr key={task.id}>
-                                        <td>
-                                            <input type="checkbox" className="checkbox" />
-                                        </td>
-                                        <td>
-                                            <div className="task-name">
-                                                <span className="task-name-text">{task.task || 'Untitled'}</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            {task.owner ? (
-                                                <div
-                                                    className="avatar"
-                                                    style={{ backgroundColor: getAvatarColor(task.owner) }}
-                                                    title={task.owner}
-                                                >
-                                                    {getInitials(task.owner)}
-                                                </div>
-                                            ) : (
-                                                <div className="avatar avatar-placeholder">?</div>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {task.assign ? (
-                                                <div
-                                                    className="avatar"
-                                                    style={{ backgroundColor: getAvatarColor(task.assign) }}
-                                                    title={task.assign}
-                                                >
-                                                    {getInitials(task.assign)}
-                                                </div>
-                                            ) : (
-                                                <div className="avatar avatar-placeholder">?</div>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <select
-                                                className="status-badge"
-                                                value={task.status}
-                                                onChange={e => handleStatusChange(task, e.target.value as TaskStatus)}
-                                                style={{
-                                                    backgroundColor: STATUS_COLORS[task.status].bg,
-                                                    color: STATUS_COLORS[task.status].text,
-                                                    border: 'none',
-                                                    cursor: 'pointer'
+                    <table className="group-table">
+                        <thead>
+                            <tr>
+                                <th className="col-checkbox"></th>
+                                <th className="col-task">Task</th>
+                                <th className="col-owner">Owner</th>
+                                <th className="col-assign">Assign</th>
+                                <th className="col-status">Status</th>
+                                <th className="col-date">Create date</th>
+                                <th className="col-date">Estimate date</th>
+                                <th className="col-notes">Notes</th>
+                                <th className="col-files">Files</th>
+                                <th className="col-reviewer">Reviewer</th>
+                                <th className="col-review">Review</th>
+                                <th className="col-actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {tasks.map(task => (
+                                <tr key={task.id}>
+                                    <td>
+                                        <input type="checkbox" className="checkbox" />
+                                    </td>
+                                    <td>
+                                        <EditableCell
+                                            value={task.task}
+                                            onChange={v => handleFieldChange(task, 'task', v)}
+                                            placeholder="Task name..."
+                                            autoFocus={task.id === newTaskId}
+                                        />
+                                    </td>
+                                    <td>
+                                        {task.owner ? (
+                                            <div
+                                                className="avatar"
+                                                style={{ backgroundColor: getAvatarColor(task.owner) }}
+                                                title={task.owner}
+                                                onClick={() => {
+                                                    const name = prompt('Owner name:', task.owner);
+                                                    if (name !== null) handleFieldChange(task, 'owner', name);
                                                 }}
                                             >
-                                                <option value="Not Started">Not Started</option>
-                                                <option value="Working on it">Working on it</option>
-                                                <option value="In Review">In Review</option>
-                                                <option value="Done">Done</option>
-                                            </select>
-                                        </td>
-                                        <td>
-                                            {task.createDate && (
-                                                <span className="date-cell">{formatDate(task.createDate)}</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {task.estimateDate ? (
-                                                <span className="date-cell">{formatDate(task.estimateDate)}</span>
-                                            ) : (
-                                                <span className="date-cell empty">-</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <span style={{ color: 'var(--text-muted)' }}>
-                                                {task.notes ? task.notes.substring(0, 20) + (task.notes.length > 20 ? '...' : '') : '-'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div className="files-count">
-                                                {task.files.length > 0 ? task.files.length : '-'}
+                                                {getInitials(task.owner)}
                                             </div>
-                                        </td>
-                                        <td>
-                                            {task.reviewer ? (
-                                                <div
-                                                    className="avatar"
-                                                    style={{ backgroundColor: getAvatarColor(task.reviewer) }}
-                                                    title={task.reviewer}
-                                                >
-                                                    {getInitials(task.reviewer)}
-                                                </div>
-                                            ) : (
-                                                <div className="avatar avatar-placeholder">?</div>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <span style={{ color: 'var(--text-muted)' }}>
-                                                {task.review || '-'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: '4px' }}>
-                                                <button
-                                                    className="btn btn-ghost btn-sm"
-                                                    onClick={() => onEditTask(task)}
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    className="btn btn-ghost btn-sm"
-                                                    onClick={() => onDeleteTask(task.id)}
-                                                    style={{ color: 'var(--accent-red)' }}
-                                                >
-                                                    x
-                                                </button>
+                                        ) : (
+                                            <div
+                                                className="avatar avatar-placeholder"
+                                                onClick={() => {
+                                                    const name = prompt('Owner name:');
+                                                    if (name) handleFieldChange(task, 'owner', name);
+                                                }}
+                                            >
+                                                ?
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-
-                    <div className="add-task-row" onClick={() => onAddTask(group.id)}>
-                        <span>+ Add task</span>
-                    </div>
+                                        )}
+                                    </td>
+                                    <td>
+                                        {task.assign ? (
+                                            <div
+                                                className="avatar"
+                                                style={{ backgroundColor: getAvatarColor(task.assign) }}
+                                                title={task.assign}
+                                                onClick={() => {
+                                                    const name = prompt('Assign to:', task.assign);
+                                                    if (name !== null) handleFieldChange(task, 'assign', name);
+                                                }}
+                                            >
+                                                {getInitials(task.assign)}
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className="avatar avatar-placeholder"
+                                                onClick={() => {
+                                                    const name = prompt('Assign to:');
+                                                    if (name) handleFieldChange(task, 'assign', name);
+                                                }}
+                                            >
+                                                ?
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td>
+                                        <select
+                                            className="status-badge"
+                                            value={task.status}
+                                            onChange={e => handleStatusChange(task, e.target.value as TaskStatus)}
+                                            style={{
+                                                backgroundColor: STATUS_COLORS[task.status].bg,
+                                                color: STATUS_COLORS[task.status].text,
+                                                border: 'none',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <option value="Not Started">Not Started</option>
+                                            <option value="Working on it">Working on it</option>
+                                            <option value="In Review">In Review</option>
+                                            <option value="Done">Done</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <span className="date-cell">{formatDate(task.createDate)}</span>
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="date"
+                                            className="date-input"
+                                            value={formatDateForInput(task.estimateDate)}
+                                            onChange={e => handleFieldChange(task, 'estimateDate', e.target.value)}
+                                        />
+                                    </td>
+                                    <td>
+                                        <EditableCell
+                                            value={task.notes}
+                                            onChange={v => handleFieldChange(task, 'notes', v)}
+                                            placeholder="Notes..."
+                                        />
+                                    </td>
+                                    <td>
+                                        <div className="files-count">
+                                            {task.files.length > 0 ? task.files.length : '-'}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {task.reviewer ? (
+                                            <div
+                                                className="avatar"
+                                                style={{ backgroundColor: getAvatarColor(task.reviewer) }}
+                                                title={task.reviewer}
+                                                onClick={() => {
+                                                    const name = prompt('Reviewer:', task.reviewer);
+                                                    if (name !== null) handleFieldChange(task, 'reviewer', name);
+                                                }}
+                                            >
+                                                {getInitials(task.reviewer)}
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className="avatar avatar-placeholder"
+                                                onClick={() => {
+                                                    const name = prompt('Reviewer:');
+                                                    if (name) handleFieldChange(task, 'reviewer', name);
+                                                }}
+                                            >
+                                                ?
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td>
+                                        <EditableCell
+                                            value={task.review}
+                                            onChange={v => handleFieldChange(task, 'review', v)}
+                                            placeholder="Review..."
+                                        />
+                                    </td>
+                                    <td>
+                                        <button
+                                            className="btn btn-ghost btn-sm"
+                                            onClick={() => onDeleteTask(task.id)}
+                                            style={{ color: 'var(--accent-red)' }}
+                                        >
+                                            x
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {/* Add task row */}
+                            <tr className="add-task-row-table" onClick={handleAddEmptyRow}>
+                                <td></td>
+                                <td colSpan={11}>
+                                    <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>+ Add task</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </>
             )}
         </div>

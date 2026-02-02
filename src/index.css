@@ -647,3 +647,83 @@ body {
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* Add Task Row in Table */
+.add-task-row-table {
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.add-task-row-table:hover {
+  background: var(--bg-hover);
+}
+
+.add-task-row-table td {
+  padding: 10px 12px;
+  border-bottom: none;
+}
+
+/* Editable Cell */
+.editable-cell {
+  padding: 4px 0;
+  min-height: 24px;
+  cursor: text;
+}
+
+.editable-cell:hover {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  margin: -2px -4px;
+  padding: 6px 4px;
+}
+
+/* Date Input */
+.date-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.date-input:hover {
+  background: var(--bg-tertiary);
+}
+
+.date-input:focus {
+  outline: none;
+  background: var(--bg-tertiary);
+}
+
+.date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+/* Avatar clickable */
+.avatar {
+  cursor: pointer;
+  transition: transform var(--transition);
+}
+
+.avatar:hover {
+  transform: scale(1.1);
+}
+
+/* Inline Edit */
+.inline-edit {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-blue);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  width: 100%;
+}
+
+.inline-edit:focus {
+  outline: none;
+}
