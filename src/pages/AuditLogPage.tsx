@@ -12,7 +12,7 @@ interface AuditLogPageProps {
 }
 
 export function AuditLogPage({ onClose }: AuditLogPageProps) {
-    const { isAdmin, isMod } = useAuth();
+    const { isAdmin } = useAuth();
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export function AuditLogPage({ onClose }: AuditLogPageProps) {
         }
     };
 
-    if (!isAdmin && !isMod) {
+    if (!isAdmin) {
         return (
             <div className="audit-page">
                 <div className="audit-header">

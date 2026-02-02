@@ -107,9 +107,6 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
                             placeholder="Your full name"
                             disabled={isSubmitting}
                         />
-                        <small className="form-hint">
-                            This name will be shown in avatars and dropdowns
-                        </small>
                     </div>
 
                     <div className="form-group">

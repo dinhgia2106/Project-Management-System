@@ -14,6 +14,8 @@ interface TaskGroupProps {
     onUpdateGroup: (group: TaskGroupType) => void;
     onDeleteGroup: (groupId: string) => void;
     onEditGroup: (group: TaskGroupType) => void;
+    canDeleteTask: boolean;
+    canDeleteGroup: boolean;
     // Drag and drop props
     onDragStart?: (e: React.DragEvent, groupId: string) => void;
     onDragOver?: (e: React.DragEvent) => void;
@@ -313,6 +315,8 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     onUpdateGroup,
     onDeleteGroup,
     onEditGroup,
+    canDeleteTask,
+    canDeleteGroup,
     onDragStart,
     onDragOver,
     onDragEnter,
@@ -426,14 +430,16 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                     >
                         Edit
                     </button>
-                    <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => onDeleteGroup(group.id)}
-                        style={{ color: 'var(--accent-red)' }}
-                        title="Delete group"
-                    >
-                        x
-                    </button>
+                    {canDeleteGroup && (
+                        <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => onDeleteGroup(group.id)}
+                            style={{ color: 'var(--accent-red)' }}
+                            title="Delete group"
+                        >
+                            x
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -553,17 +559,19 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                         />
                                     </td>
                                     <td>
-                                        <button
-                                            className="btn btn-ghost btn-sm"
-                                            onClick={() => {
-                                                if (window.confirm('Are you sure you want to delete this task?')) {
-                                                    onDeleteTask(task.id);
-                                                }
-                                            }}
-                                            style={{ color: 'var(--accent-red)' }}
-                                        >
-                                            x
-                                        </button>
+                                        {canDeleteTask && (
+                                            <button
+                                                className="btn btn-ghost btn-sm"
+                                                onClick={() => {
+                                                    if (window.confirm('Are you sure you want to delete this task?')) {
+                                                        onDeleteTask(task.id);
+                                                    }
+                                                }}
+                                                style={{ color: 'var(--accent-red)' }}
+                                            >
+                                                x
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

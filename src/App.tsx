@@ -441,7 +441,7 @@ function App() {
               Users
             </button>
           )}
-          {(isAdmin || isMod) && (
+          {isAdmin && (
             <button
               className="btn btn-secondary"
               onClick={() => setIsAuditLogOpen(true)}
@@ -519,6 +519,8 @@ function App() {
               onUpdateGroup={handleUpdateGroup}
               onDeleteGroup={handleDeleteGroup}
               onEditGroup={handleEditGroup}
+              canDeleteTask={isAdmin || isMod}
+              canDeleteGroup={isAdmin || isMod}
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDragEnter={handleDragEnter}
