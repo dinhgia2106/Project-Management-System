@@ -15,6 +15,10 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'All'>('All');
 
+  // Drag and drop state
+  const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
+  const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+
   const filteredTasks = useMemo(() => {
     let result = [...tasks];
 
@@ -45,6 +49,11 @@ function App() {
     setIsGroupModalOpen(true);
   };
 
+  const handleEditGroup = (group: TaskGroup) => {
+    setEditingGroup(group);
+    setIsGroupModalOpen(true);
+  };
+
   const handleSaveGroup = (group: TaskGroup) => {
     const existingIndex = groups.findIndex(g => g.id === group.id);
     if (existingIndex >= 0) {
@@ -68,6 +77,66 @@ function App() {
       setGroups(groups.filter(g => g.id !== groupId));
       setTasks(tasks.filter(t => t.groupId !== groupId));
     }
+  };
+
+  // Drag and drop handlers for group reordering
+  const handleDragStart = (e: React.DragEvent, groupId: string) => {
+    setDraggedGroupId(groupId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', groupId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnter = (e: React.DragEvent, groupId: string) => {
+    e.preventDefault();
+    if (draggedGroupId && draggedGroupId !== groupId) {
+      setDragOverGroupId(groupId);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear if we're leaving the group entirely
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+      setDragOverGroupId(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetGroupId: string) => {
+    e.preventDefault();
+
+    if (!draggedGroupId || draggedGroupId === targetGroupId) {
+      setDraggedGroupId(null);
+      setDragOverGroupId(null);
+      return;
+    }
+
+    const draggedIndex = groups.findIndex(g => g.id === draggedGroupId);
+    const targetIndex = groups.findIndex(g => g.id === targetGroupId);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedGroupId(null);
+      setDragOverGroupId(null);
+      return;
+    }
+
+    // Reorder groups
+    const newGroups = [...groups];
+    const [draggedGroup] = newGroups.splice(draggedIndex, 1);
+    newGroups.splice(targetIndex, 0, draggedGroup);
+
+    setGroups(newGroups);
+    setDraggedGroupId(null);
+    setDragOverGroupId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedGroupId(null);
+    setDragOverGroupId(null);
   };
 
   // Task handlers
@@ -118,7 +187,7 @@ function App() {
   };
 
   return (
-    <div className="app">
+    <div className="app" onDragEnd={handleDragEnd}>
       <header className="header">
         <div className="header-left">
           <h1>Project Management</h1>
@@ -184,6 +253,13 @@ function App() {
               onUpdateTask={handleUpdateTask}
               onUpdateGroup={handleUpdateGroup}
               onDeleteGroup={handleDeleteGroup}
+              onEditGroup={handleEditGroup}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              isDragOver={dragOverGroupId === group.id}
             />
           ))
         )}

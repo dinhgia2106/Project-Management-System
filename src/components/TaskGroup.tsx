@@ -10,6 +10,14 @@ interface TaskGroupProps {
     onUpdateTask: (task: Task) => void;
     onUpdateGroup: (group: TaskGroupType) => void;
     onDeleteGroup: (groupId: string) => void;
+    onEditGroup: (group: TaskGroupType) => void;
+    // Drag and drop props
+    onDragStart?: (e: React.DragEvent, groupId: string) => void;
+    onDragOver?: (e: React.DragEvent) => void;
+    onDragEnter?: (e: React.DragEvent, groupId: string) => void;
+    onDragLeave?: (e: React.DragEvent) => void;
+    onDrop?: (e: React.DragEvent, groupId: string) => void;
+    isDragOver?: boolean;
 }
 
 const getInitials = (name: string): string => {
@@ -162,7 +170,14 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     onDeleteTask,
     onUpdateTask,
     onUpdateGroup,
-    onDeleteGroup
+    onDeleteGroup,
+    onEditGroup,
+    onDragStart,
+    onDragOver,
+    onDragEnter,
+    onDragLeave,
+    onDrop,
+    isDragOver
 }) => {
     const [isExpanded, setIsExpanded] = useState(group.isExpanded);
     const [newTaskId, setNewTaskId] = useState<string | null>(null);
@@ -205,8 +220,26 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     };
 
     return (
-        <div className="task-group">
+        <div
+            className={`task-group ${isDragOver ? 'drag-over' : ''}`}
+            onDragOver={onDragOver}
+            onDragEnter={(e) => onDragEnter?.(e, group.id)}
+            onDragLeave={onDragLeave}
+            onDrop={(e) => onDrop?.(e, group.id)}
+        >
             <div className="group-header" onClick={toggleExpand}>
+                <div
+                    className="group-drag-handle"
+                    draggable
+                    onDragStart={(e) => {
+                        e.stopPropagation();
+                        onDragStart?.(e, group.id);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    title="Drag to reorder"
+                >
+                    ::
+                </div>
                 <span className={`group-expand ${isExpanded ? 'expanded' : ''}`}>
                     &gt;
                 </span>
@@ -215,7 +248,19 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                 <span className="group-dates">{formatGroupDates()}</span>
                 <span className="group-count">{tasks.length}</span>
                 <div className="group-actions" onClick={e => e.stopPropagation()}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => onDeleteGroup(group.id)}>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => onEditGroup(group)}
+                        title="Edit group"
+                    >
+                        Edit
+                    </button>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => onDeleteGroup(group.id)}
+                        style={{ color: 'var(--accent-red)' }}
+                        title="Delete group"
+                    >
                         x
                     </button>
                 </div>
