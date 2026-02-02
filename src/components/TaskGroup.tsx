@@ -168,7 +168,6 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                     <table className="group-table">
                         <thead>
                             <tr>
-                                <th className="col-checkbox"></th>
                                 <th className="col-task">Task</th>
                                 <th className="col-owner">Owner</th>
                                 <th className="col-assign">Assign</th>
@@ -185,9 +184,6 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                         <tbody>
                             {tasks.map(task => (
                                 <tr key={task.id}>
-                                    <td>
-                                        <input type="checkbox" className="checkbox" />
-                                    </td>
                                     <td>
                                         <EditableCell
                                             value={task.task}
@@ -322,7 +318,11 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                     <td>
                                         <button
                                             className="btn btn-ghost btn-sm"
-                                            onClick={() => onDeleteTask(task.id)}
+                                            onClick={() => {
+                                                if (window.confirm('Are you sure you want to delete this task?')) {
+                                                    onDeleteTask(task.id);
+                                                }
+                                            }}
                                             style={{ color: 'var(--accent-red)' }}
                                         >
                                             x
@@ -332,7 +332,6 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                             ))}
                             {/* Add task row */}
                             <tr className="add-task-row-table" onClick={handleAddEmptyRow}>
-                                <td></td>
                                 <td colSpan={11}>
                                     <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>+ Add task</span>
                                 </td>
