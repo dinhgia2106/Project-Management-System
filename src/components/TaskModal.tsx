@@ -14,7 +14,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
 
     React.useEffect(() => {
         if (task) {
-            setFormData({ ...task });
+            setFormData({ ...task, files: task.files || [] });
         }
     }, [task]);
 
@@ -33,17 +33,18 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
-        if (files && files.length > 0) {
+        if (files && files.length > 0 && formData) {
             const newFiles = Array.from(files).map(file => ({
                 id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                task_id: formData.id,
                 name: file.name,
                 size: file.size,
                 type: file.type,
-                addedAt: new Date().toISOString()
+                added_at: new Date().toISOString()
             }));
             setFormData(prev => prev ? {
                 ...prev,
-                files: [...prev.files, ...newFiles]
+                files: [...(prev.files || []), ...newFiles]
             } : null);
         }
     };
@@ -51,7 +52,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
     const removeFile = (fileId: string) => {
         setFormData(prev => prev ? {
             ...prev,
-            files: prev.files.filter(f => f.id !== fileId)
+            files: (prev.files || []).filter(f => f.id !== fileId)
         } : null);
     };
 
@@ -124,8 +125,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
                                 <label>Estimate Date</label>
                                 <input
                                     type="date"
-                                    value={formatDateForInput(formData.estimateDate)}
-                                    onChange={e => handleChange('estimateDate', e.target.value)}
+                                    value={formatDateForInput(formData.estimate_date || '')}
+                                    onChange={e => handleChange('estimate_date', e.target.value)}
                                 />
                             </div>
 
@@ -160,16 +161,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, isOpen, onClose, onS
                             </div>
 
                             <div className="form-group full-width">
-                                <label>Files ({formData.files.length})</label>
+                                <label>Files ({(formData.files || []).length})</label>
                                 <input
                                     type="file"
                                     multiple
                                     onChange={handleFileChange}
                                     style={{ padding: '8px' }}
                                 />
-                                {formData.files.length > 0 && (
+                                {(formData.files || []).length > 0 && (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
-                                        {formData.files.map(file => (
+                                        {(formData.files || []).map(file => (
                                             <div
                                                 key={file.id}
                                                 style={{

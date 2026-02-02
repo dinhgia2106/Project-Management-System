@@ -218,7 +218,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 p_entity_type: 'user',
                 p_entity_id: user.id,
                 p_entity_name: user.username,
-            }).catch(console.error);
+            }).then(({ error }) => {
+                if (error) console.error(error);
+            });
         }
 
         localStorage.removeItem(SESSION_KEY);

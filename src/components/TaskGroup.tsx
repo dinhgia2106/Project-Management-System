@@ -379,7 +379,6 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
 }) => {
     const isExpanded = group.is_expanded ?? (group as any).isExpanded ?? true;
     const [expanded, setExpanded] = useState(isExpanded);
-    const [newTaskId, setNewTaskId] = useState<string | null>(null);
 
     const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
 
@@ -414,8 +413,6 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     const handleStatusChange = (task: Task, newStatus: TaskStatus) => {
         onUpdateTask({ ...task, status: newStatus });
     };
-
-    const canEditReviewer = isAdminOrMod;
 
     const canEditReview = (task: Task): boolean => {
         if (!currentUser) return false;
@@ -535,7 +532,6 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                                     value={task.task}
                                                     onChange={v => handleFieldChange(task, 'task', v)}
                                                     placeholder="Task name..."
-                                                    autoFocus={task.id === newTaskId}
                                                     disabled={isMemberAndLocked('task')}
                                                 />
                                             </LockableCell>
