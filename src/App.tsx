@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import type { TaskStatus, TaskGroup, Task } from './types';
+import type { TaskStatus, TaskGroup, Task, User } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { AdminPanel } from './pages/AdminPanel';
 import { AuditLogPage } from './pages/AuditLogPage';
@@ -12,6 +12,7 @@ function App() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [groups, setGroups] = useState<TaskGroup[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -52,6 +53,18 @@ function App() {
         console.error('Error loading tasks:', tasksError);
       } else {
         setTasks(tasksData || []);
+      }
+
+      // Load users for dropdowns
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('*')
+        .order('username', { ascending: true });
+
+      if (usersError) {
+        console.error('Error loading users:', usersError);
+      } else {
+        setAllUsers(usersData || []);
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -499,6 +512,7 @@ function App() {
               tasks={getTasksForGroup(group.id)}
               currentUser={user}
               userRole={user?.role || 'member'}
+              allUsers={allUsers}
               onAddTask={handleAddTask}
               onDeleteTask={handleDeleteTask}
               onUpdateTask={handleUpdateTask}

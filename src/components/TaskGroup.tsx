@@ -7,6 +7,7 @@ interface TaskGroupProps {
     tasks: Task[];
     currentUser: User | null;
     userRole: UserRole;
+    allUsers: User[];
     onAddTask: (task: Task) => void;
     onDeleteTask: (taskId: string) => void;
     onUpdateTask: (task: Task) => void;
@@ -22,11 +23,12 @@ interface TaskGroupProps {
     isDragOver?: boolean;
 }
 
+// Get initials from first and last word (e.g., "Trần Đình Gia" → "TG")
 const getInitials = (name: string): string => {
     if (!name) return '';
-    const parts = name.trim().split(' ');
+    const parts = name.trim().split(/\s+/);
     if (parts.length >= 2) {
-        return (parts[0][0] + parts[1][0]).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
     return name.substring(0, 2).toUpperCase();
 };
@@ -116,6 +118,114 @@ const EditableCell: React.FC<EditableCellProps> = ({ value, onChange, placeholde
     );
 };
 
+// User Dropdown Component for selecting users
+interface UserDropdownProps {
+    value: string;
+    users: User[];
+    onChange: (username: string) => void;
+    placeholder?: string;
+    disabled?: boolean;
+}
+
+const UserDropdown: React.FC<UserDropdownProps> = ({ value, users, onChange, placeholder = 'Select user', disabled }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleSelect = (username: string) => {
+        onChange(username);
+        setIsOpen(false);
+    };
+
+    const activeUsers = users.filter(u => u.status === 'active');
+
+    if (disabled) {
+        return (
+            <div className="user-dropdown disabled" style={{ cursor: 'not-allowed' }}>
+                {value ? (
+                    <div
+                        className="avatar"
+                        style={{ backgroundColor: getAvatarColor(value), opacity: 0.6 }}
+                        title={`${value} (Disabled)`}
+                    >
+                        {getInitials(value)}
+                    </div>
+                ) : (
+                    <div className="avatar avatar-placeholder" style={{ opacity: 0.6 }}>
+                        -
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="user-dropdown" ref={dropdownRef}>
+            <div
+                className="user-dropdown-trigger"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                {value ? (
+                    <div
+                        className="avatar"
+                        style={{ backgroundColor: getAvatarColor(value) }}
+                        title={value}
+                    >
+                        {getInitials(value)}
+                    </div>
+                ) : (
+                    <div className="avatar avatar-placeholder" title={placeholder}>
+                        ?
+                    </div>
+                )}
+            </div>
+            {isOpen && (
+                <div className="user-dropdown-menu">
+                    {/* Clear option */}
+                    <div
+                        className="user-dropdown-option"
+                        onClick={() => handleSelect('')}
+                    >
+                        <div className="avatar avatar-placeholder" style={{ width: 24, height: 24, fontSize: 10 }}>
+                            -
+                        </div>
+                        <span className="user-dropdown-name">Clear</span>
+                    </div>
+                    {activeUsers.map(user => (
+                        <div
+                            key={user.id}
+                            className={`user-dropdown-option ${value === user.username ? 'selected' : ''}`}
+                            onClick={() => handleSelect(user.username)}
+                        >
+                            <div
+                                className="avatar"
+                                style={{
+                                    backgroundColor: getAvatarColor(user.username),
+                                    width: 24,
+                                    height: 24,
+                                    fontSize: 10
+                                }}
+                            >
+                                {getInitials(user.username)}
+                            </div>
+                            <span className="user-dropdown-name">{user.username}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // Custom Status Dropdown with colored options and permission control
 interface StatusDropdownProps {
     value: TaskStatus;
@@ -138,7 +248,6 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({ value, onChange, canSel
     }, []);
 
     const handleSelect = (status: TaskStatus) => {
-        // Only allow selecting "Done" if user has permission
         if (status === 'Done' && !canSelectDone) {
             alert('Only the reviewer can mark task as Done');
             return;
@@ -147,7 +256,6 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({ value, onChange, canSel
         setIsOpen(false);
     };
 
-    // Filter options - hide Done if user cannot select it
     const availableOptions = STATUS_OPTIONS.filter(status => {
         if (status === 'Done' && !canSelectDone) return false;
         return true;
@@ -191,6 +299,7 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     tasks,
     currentUser,
     userRole,
+    allUsers,
     onAddTask,
     onDeleteTask,
     onUpdateTask,
@@ -204,7 +313,6 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     onDrop,
     isDragOver
 }) => {
-    // Support both snake_case (Supabase) and camelCase (legacy) field names
     const isExpanded = group.is_expanded ?? (group as any).isExpanded ?? true;
     const [expanded, setExpanded] = useState(isExpanded);
     const [newTaskId, setNewTaskId] = useState<string | null>(null);
@@ -221,7 +329,7 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
         const newTask: Partial<Task> = {
             group_id: group.id,
             task: '',
-            owner: '',
+            owner: currentUser?.username || '', // Auto-set owner to current user
             assign: '',
             user_story: '',
             acceptance_criteria: '',
@@ -243,24 +351,19 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
         onUpdateTask({ ...task, status: newStatus });
     };
 
-    // Check if current user can edit reviewer field (admin/mod only)
     const canEditReviewer = isAdminOrMod;
 
-    // Check if current user can edit review field (only assigned reviewer)
     const canEditReview = (task: Task): boolean => {
         if (!currentUser) return false;
-        // Reviewer can edit their own review
         return task.reviewer.toLowerCase() === currentUser.username.toLowerCase();
     };
 
-    // Check if current user can select "Done" status (only reviewer)
     const canSelectDone = (task: Task): boolean => {
         if (!currentUser) return false;
         return task.reviewer.toLowerCase() === currentUser.username.toLowerCase();
     };
 
     const formatGroupDates = () => {
-        // Support both snake_case and camelCase
         const startDate = group.start_date || (group as any).startDate;
         const endDate = group.end_date || (group as any).endDate;
         const start = startDate ? formatDate(startDate) : '';
@@ -358,54 +461,29 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                         />
                                     </td>
                                     <td>
+                                        {/* Owner: Display-only avatar of creator */}
                                         {task.owner ? (
                                             <div
                                                 className="avatar"
-                                                style={{ backgroundColor: getAvatarColor(task.owner) }}
+                                                style={{ backgroundColor: getAvatarColor(task.owner), cursor: 'default' }}
                                                 title={task.owner}
-                                                onClick={() => {
-                                                    const name = prompt('Owner name:', task.owner);
-                                                    if (name !== null) handleFieldChange(task, 'owner', name);
-                                                }}
                                             >
                                                 {getInitials(task.owner)}
                                             </div>
                                         ) : (
-                                            <div
-                                                className="avatar avatar-placeholder"
-                                                onClick={() => {
-                                                    const name = prompt('Owner name:');
-                                                    if (name) handleFieldChange(task, 'owner', name);
-                                                }}
-                                            >
-                                                ?
+                                            <div className="avatar avatar-placeholder" style={{ cursor: 'default' }}>
+                                                -
                                             </div>
                                         )}
                                     </td>
                                     <td>
-                                        {task.assign ? (
-                                            <div
-                                                className="avatar"
-                                                style={{ backgroundColor: getAvatarColor(task.assign) }}
-                                                title={task.assign}
-                                                onClick={() => {
-                                                    const name = prompt('Assign to:', task.assign);
-                                                    if (name !== null) handleFieldChange(task, 'assign', name);
-                                                }}
-                                            >
-                                                {getInitials(task.assign)}
-                                            </div>
-                                        ) : (
-                                            <div
-                                                className="avatar avatar-placeholder"
-                                                onClick={() => {
-                                                    const name = prompt('Assign to:');
-                                                    if (name) handleFieldChange(task, 'assign', name);
-                                                }}
-                                            >
-                                                ?
-                                            </div>
-                                        )}
+                                        {/* Assign: User dropdown */}
+                                        <UserDropdown
+                                            value={task.assign}
+                                            users={allUsers}
+                                            onChange={v => handleFieldChange(task, 'assign', v)}
+                                            placeholder="Assign to..."
+                                        />
                                     </td>
                                     <td>
                                         <EditableCell
@@ -447,50 +525,14 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                         />
                                     </td>
                                     <td>
-                                        {canEditReviewer ? (
-                                            task.reviewer ? (
-                                                <div
-                                                    className="avatar"
-                                                    style={{ backgroundColor: getAvatarColor(task.reviewer) }}
-                                                    title={task.reviewer}
-                                                    onClick={() => {
-                                                        const name = prompt('Reviewer:', task.reviewer);
-                                                        if (name !== null) handleFieldChange(task, 'reviewer', name);
-                                                    }}
-                                                >
-                                                    {getInitials(task.reviewer)}
-                                                </div>
-                                            ) : (
-                                                <div
-                                                    className="avatar avatar-placeholder"
-                                                    onClick={() => {
-                                                        const name = prompt('Reviewer:');
-                                                        if (name) handleFieldChange(task, 'reviewer', name);
-                                                    }}
-                                                >
-                                                    ?
-                                                </div>
-                                            )
-                                        ) : (
-                                            // Non-admin/mod can only view
-                                            task.reviewer ? (
-                                                <div
-                                                    className="avatar"
-                                                    style={{ backgroundColor: getAvatarColor(task.reviewer), cursor: 'not-allowed' }}
-                                                    title={`${task.reviewer} (Admin/Mod only)`}
-                                                >
-                                                    {getInitials(task.reviewer)}
-                                                </div>
-                                            ) : (
-                                                <div
-                                                    className="avatar avatar-placeholder"
-                                                    style={{ cursor: 'not-allowed' }}
-                                                    title="Admin/Mod only"
-                                                >
-                                                    -
-                                                </div>
-                                            )
-                                        )}
+                                        {/* Reviewer: User dropdown (admin/mod only) */}
+                                        <UserDropdown
+                                            value={task.reviewer}
+                                            users={allUsers}
+                                            onChange={v => handleFieldChange(task, 'reviewer', v)}
+                                            placeholder="Reviewer..."
+                                            disabled={!canEditReviewer}
+                                        />
                                     </td>
                                     <td>
                                         <EditableCell
