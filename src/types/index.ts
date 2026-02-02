@@ -1,4 +1,4 @@
-export type TaskStatus = 'Not Started' | 'Working on it' | 'In Review' | 'Done';
+export type TaskStatus = 'Not Started' | 'Working on it' | 'Stucking' | 'In Review' | 'Done';
 
 export interface TaskFile {
     id: string;

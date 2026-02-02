@@ -43,13 +43,14 @@ export const createEmptyGroup = (): TaskGroup => ({
     isExpanded: true
 });
 
-export const STATUS_OPTIONS: TaskStatus[] = ['Not Started', 'Working on it', 'In Review', 'Done'];
+export const STATUS_OPTIONS: TaskStatus[] = ['Not Started', 'Working on it', 'Stucking', 'In Review', 'Done'];
 
 export const STATUS_COLORS: Record<TaskStatus, { bg: string; text: string }> = {
-    'Not Started': { bg: '#f97316', text: '#ffffff' },
-    'Working on it': { bg: '#06b6d4', text: '#ffffff' },
-    'In Review': { bg: '#a855f7', text: '#ffffff' },
-    'Done': { bg: '#22c55e', text: '#ffffff' }
+    'Not Started': { bg: '#323338', text: '#ffffff' },
+    'Working on it': { bg: '#fdab3d', text: '#ffffff' },
+    'Stucking': { bg: '#e2445c', text: '#ffffff' },
+    'In Review': { bg: '#a25ddc', text: '#ffffff' },
+    'Done': { bg: '#00c875', text: '#ffffff' }
 };
 
 export const GROUP_COLORS = [

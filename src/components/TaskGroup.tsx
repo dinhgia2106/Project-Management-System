@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Task, TaskGroup as TaskGroupType, TaskStatus } from '../types';
-import { formatDate, STATUS_COLORS, createEmptyTask } from '../utils/helpers';
+import { formatDate, STATUS_COLORS, STATUS_OPTIONS, createEmptyTask } from '../utils/helpers';
 
 interface TaskGroupProps {
     group: TaskGroupType;
@@ -93,6 +93,64 @@ const EditableCell: React.FC<EditableCellProps> = ({ value, onChange, placeholde
             style={{ cursor: 'text', minHeight: '20px' }}
         >
             {value || <span style={{ color: 'var(--text-muted)' }}>{placeholder || '-'}</span>}
+        </div>
+    );
+};
+
+// Custom Status Dropdown with colored options
+interface StatusDropdownProps {
+    value: TaskStatus;
+    onChange: (status: TaskStatus) => void;
+}
+
+const StatusDropdown: React.FC<StatusDropdownProps> = ({ value, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleSelect = (status: TaskStatus) => {
+        onChange(status);
+        setIsOpen(false);
+    };
+
+    return (
+        <div className="status-dropdown" ref={dropdownRef}>
+            <div
+                className="status-dropdown-trigger"
+                onClick={() => setIsOpen(!isOpen)}
+                style={{
+                    backgroundColor: STATUS_COLORS[value].bg,
+                    color: STATUS_COLORS[value].text
+                }}
+            >
+                {value}
+            </div>
+            {isOpen && (
+                <div className="status-dropdown-menu">
+                    {STATUS_OPTIONS.map(status => (
+                        <div
+                            key={status}
+                            className="status-dropdown-option"
+                            onClick={() => handleSelect(status)}
+                            style={{
+                                backgroundColor: STATUS_COLORS[status].bg,
+                                color: STATUS_COLORS[status].text
+                            }}
+                        >
+                            {status}
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
@@ -243,22 +301,10 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                         )}
                                     </td>
                                     <td>
-                                        <select
-                                            className="status-badge"
+                                        <StatusDropdown
                                             value={task.status}
-                                            onChange={e => handleStatusChange(task, e.target.value as TaskStatus)}
-                                            style={{
-                                                backgroundColor: STATUS_COLORS[task.status].bg,
-                                                color: STATUS_COLORS[task.status].text,
-                                                border: 'none',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <option value="Not Started">Not Started</option>
-                                            <option value="Working on it">Working on it</option>
-                                            <option value="In Review">In Review</option>
-                                            <option value="Done">Done</option>
-                                        </select>
+                                            onChange={newStatus => handleStatusChange(task, newStatus)}
+                                        />
                                     </td>
                                     <td>
                                         <span className="date-cell">{formatDate(task.createDate)}</span>
