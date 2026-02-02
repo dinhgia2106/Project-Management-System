@@ -27,6 +27,10 @@ export const GroupModal: React.FC<GroupModalProps> = ({ group, isOpen, onClose, 
         }
     };
 
+    // Support both snake_case and camelCase
+    const startDate = formData.start_date || (formData as any).startDate || '';
+    const endDate = formData.end_date || (formData as any).endDate || '';
+
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
@@ -54,8 +58,8 @@ export const GroupModal: React.FC<GroupModalProps> = ({ group, isOpen, onClose, 
                                 <label>Start Date</label>
                                 <input
                                     type="date"
-                                    value={formatDateForInput(formData.startDate)}
-                                    onChange={e => setFormData({ ...formData, startDate: e.target.value })}
+                                    value={formatDateForInput(startDate)}
+                                    onChange={e => setFormData({ ...formData, start_date: e.target.value })}
                                 />
                             </div>
 
@@ -63,8 +67,8 @@ export const GroupModal: React.FC<GroupModalProps> = ({ group, isOpen, onClose, 
                                 <label>End Date</label>
                                 <input
                                     type="date"
-                                    value={formatDateForInput(formData.endDate)}
-                                    onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                                    value={formatDateForInput(endDate)}
+                                    onChange={e => setFormData({ ...formData, end_date: e.target.value })}
                                 />
                             </div>
 

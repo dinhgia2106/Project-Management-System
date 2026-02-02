@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Task, TaskGroup as TaskGroupType, TaskStatus } from '../types';
-import { formatDate, STATUS_COLORS, STATUS_OPTIONS, createEmptyTask } from '../utils/helpers';
+import { formatDate, STATUS_COLORS, STATUS_OPTIONS } from '../utils/helpers';
 
 interface TaskGroupProps {
     group: TaskGroupType;
@@ -179,21 +179,34 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     onDrop,
     isDragOver
 }) => {
-    const [isExpanded, setIsExpanded] = useState(group.isExpanded);
+    // Support both snake_case (Supabase) and camelCase (legacy) field names
+    const isExpanded = group.is_expanded ?? (group as any).isExpanded ?? true;
+    const [expanded, setExpanded] = useState(isExpanded);
     const [newTaskId, setNewTaskId] = useState<string | null>(null);
 
     const toggleExpand = () => {
-        setIsExpanded(!isExpanded);
-        onUpdateGroup({ ...group, isExpanded: !isExpanded });
+        const newExpanded = !expanded;
+        setExpanded(newExpanded);
+        onUpdateGroup({ ...group, is_expanded: newExpanded });
     };
 
     const handleAddEmptyRow = () => {
-        const newTask = createEmptyTask(group.id);
-        onAddTask(newTask);
-        setNewTaskId(newTask.id);
+        const newTask: Partial<Task> = {
+            group_id: group.id,
+            task: '',
+            owner: '',
+            assign: '',
+            status: 'Not Started',
+            create_date: new Date().toISOString().split('T')[0],
+            estimate_date: null,
+            notes: '',
+            reviewer: '',
+            review: '',
+        };
+        onAddTask(newTask as Task);
     };
 
-    const handleFieldChange = (task: Task, field: keyof Task, value: string) => {
+    const handleFieldChange = (task: Task, field: keyof Task, value: string | null) => {
         onUpdateTask({ ...task, [field]: value });
     };
 
@@ -202,14 +215,17 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
     };
 
     const formatGroupDates = () => {
-        const start = group.startDate ? formatDate(group.startDate) : '';
-        const end = group.endDate ? formatDate(group.endDate) : '';
+        // Support both snake_case and camelCase
+        const startDate = group.start_date || (group as any).startDate;
+        const endDate = group.end_date || (group as any).endDate;
+        const start = startDate ? formatDate(startDate) : '';
+        const end = endDate ? formatDate(endDate) : '';
         if (start && end) return `(${start} - ${end})`;
         if (start) return `(${start})`;
         return '';
     };
 
-    const formatDateForInput = (dateString: string): string => {
+    const formatDateForInput = (dateString: string | null): string => {
         if (!dateString) return '';
         try {
             const date = new Date(dateString);
@@ -240,7 +256,7 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                 >
                     ::
                 </div>
-                <span className={`group-expand ${isExpanded ? 'expanded' : ''}`}>
+                <span className={`group-expand ${expanded ? 'expanded' : ''}`}>
                     &gt;
                 </span>
                 <div className="group-color" style={{ backgroundColor: group.color }}></div>
@@ -266,7 +282,7 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                 </div>
             </div>
 
-            {isExpanded && (
+            {expanded && (
                 <>
                     <table className="group-table">
                         <thead>
@@ -278,7 +294,6 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                 <th className="col-date">Create date</th>
                                 <th className="col-date">Estimate date</th>
                                 <th className="col-notes">Notes</th>
-                                <th className="col-files">Files</th>
                                 <th className="col-reviewer">Reviewer</th>
                                 <th className="col-review">Review</th>
                                 <th className="col-actions"></th>
@@ -352,14 +367,14 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                         />
                                     </td>
                                     <td>
-                                        <span className="date-cell">{formatDate(task.createDate)}</span>
+                                        <span className="date-cell">{formatDate(task.create_date)}</span>
                                     </td>
                                     <td>
                                         <input
                                             type="date"
                                             className="date-input"
-                                            value={formatDateForInput(task.estimateDate)}
-                                            onChange={e => handleFieldChange(task, 'estimateDate', e.target.value)}
+                                            value={formatDateForInput(task.estimate_date)}
+                                            onChange={e => handleFieldChange(task, 'estimate_date', e.target.value || null)}
                                         />
                                     </td>
                                     <td>
@@ -368,11 +383,6 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                                             onChange={v => handleFieldChange(task, 'notes', v)}
                                             placeholder="Notes..."
                                         />
-                                    </td>
-                                    <td>
-                                        <div className="files-count">
-                                            {task.files.length > 0 ? task.files.length : '-'}
-                                        </div>
                                     </td>
                                     <td>
                                         {task.reviewer ? (
@@ -423,7 +433,7 @@ export const TaskGroupComponent: React.FC<TaskGroupProps> = ({
                             ))}
                             {/* Add task row */}
                             <tr className="add-task-row-table" onClick={handleAddEmptyRow}>
-                                <td colSpan={11}>
+                                <td colSpan={10}>
                                     <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>+ Add task</span>
                                 </td>
                             </tr>

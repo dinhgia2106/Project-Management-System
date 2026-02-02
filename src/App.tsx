@@ -1,22 +1,18 @@
-import React, { useState, useMemo } from 'react';
-import type { TaskStatus, LegacyTask, LegacyTaskGroup } from './types';
-import { useLocalStorage } from './hooks/useLocalStorage';
-import { createEmptyGroup } from './utils/helpers';
-import { TaskGroupComponent } from './components/TaskGroup';
-import { GroupModal } from './components/GroupModal';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import type { TaskStatus, TaskGroup, Task } from './types';
+import { useAuth } from './contexts/AuthContext';
 import { AdminPanel } from './pages/AdminPanel';
 import { AuditLogPage } from './pages/AuditLogPage';
-import { useAuth } from './contexts/AuthContext';
-
-// Use legacy types while we transition to Supabase
-type Task = LegacyTask;
-type TaskGroup = LegacyTaskGroup;
+import { TaskGroupComponent } from './components/TaskGroup';
+import { GroupModal } from './components/GroupModal';
+import { supabase } from './lib/supabaseClient';
 
 function App() {
   const { user, signOut, isAdmin, isMod } = useAuth();
 
-  const [tasks, setTasks] = useLocalStorage<Task[]>('scrum-tasks', []);
-  const [groups, setGroups] = useLocalStorage<TaskGroup[]>('scrum-groups', []);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [groups, setGroups] = useState<TaskGroup[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<TaskGroup | null>(null);
@@ -29,6 +25,44 @@ function App() {
   // Drag and drop state
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+
+  // Load data from Supabase
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Load groups
+      const { data: groupsData, error: groupsError } = await supabase
+        .from('task_groups')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      if (groupsError) {
+        console.error('Error loading groups:', groupsError);
+      } else {
+        setGroups(groupsData || []);
+      }
+
+      // Load tasks
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      if (tasksError) {
+        console.error('Error loading tasks:', tasksError);
+      } else {
+        setTasks(tasksData || []);
+      }
+    } catch (err) {
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const filteredTasks = useMemo(() => {
     let result = [...tasks];
@@ -51,12 +85,20 @@ function App() {
   }, [tasks, searchQuery, filterStatus]);
 
   const getTasksForGroup = (groupId: string) => {
-    return filteredTasks.filter(task => task.groupId === groupId);
+    return filteredTasks.filter(task => task.group_id === groupId);
   };
 
   // Group handlers
   const handleAddGroup = () => {
-    setEditingGroup(createEmptyGroup());
+    const newGroup: Partial<TaskGroup> = {
+      name: 'New Group',
+      color: '#ec4899',
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: null,
+      is_expanded: true,
+      sort_order: groups.length,
+    };
+    setEditingGroup(newGroup as TaskGroup);
     setIsGroupModalOpen(true);
   };
 
@@ -65,28 +107,96 @@ function App() {
     setIsGroupModalOpen(true);
   };
 
-  const handleSaveGroup = (group: TaskGroup) => {
-    const existingIndex = groups.findIndex(g => g.id === group.id);
-    if (existingIndex >= 0) {
-      const newGroups = [...groups];
-      newGroups[existingIndex] = group;
-      setGroups(newGroups);
-    } else {
-      setGroups([...groups, group]);
+  const handleSaveGroup = async (group: TaskGroup) => {
+    try {
+      if (group.id) {
+        // Update existing group
+        const { error } = await supabase
+          .from('task_groups')
+          .update({
+            name: group.name,
+            color: group.color,
+            start_date: group.start_date,
+            end_date: group.end_date,
+            is_expanded: group.is_expanded,
+          })
+          .eq('id', group.id);
+
+        if (error) {
+          console.error('Error updating group:', error);
+          return;
+        }
+      } else {
+        // Create new group
+        const { error } = await supabase
+          .from('task_groups')
+          .insert({
+            name: group.name,
+            color: group.color,
+            start_date: group.start_date,
+            end_date: group.end_date,
+            is_expanded: group.is_expanded,
+            sort_order: groups.length,
+            created_by: user?.id,
+          });
+
+        if (error) {
+          console.error('Error creating group:', error);
+          return;
+        }
+      }
+
+      await loadData();
+    } catch (err) {
+      console.error('Error saving group:', err);
     }
+
     setIsGroupModalOpen(false);
     setEditingGroup(null);
   };
 
-  const handleUpdateGroup = (group: TaskGroup) => {
-    const newGroups = groups.map(g => g.id === group.id ? group : g);
-    setGroups(newGroups);
+  const handleUpdateGroup = async (group: TaskGroup) => {
+    try {
+      const { error } = await supabase
+        .from('task_groups')
+        .update({
+          name: group.name,
+          color: group.color,
+          start_date: group.start_date,
+          end_date: group.end_date,
+          is_expanded: group.is_expanded,
+        })
+        .eq('id', group.id);
+
+      if (error) {
+        console.error('Error updating group:', error);
+        return;
+      }
+
+      // Update local state
+      setGroups(groups.map(g => g.id === group.id ? group : g));
+    } catch (err) {
+      console.error('Error updating group:', err);
+    }
   };
 
-  const handleDeleteGroup = (groupId: string) => {
-    if (window.confirm('Delete this group and all its tasks?')) {
-      setGroups(groups.filter(g => g.id !== groupId));
-      setTasks(tasks.filter(t => t.groupId !== groupId));
+  const handleDeleteGroup = async (groupId: string) => {
+    if (!window.confirm('Delete this group and all its tasks?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('task_groups')
+        .delete()
+        .eq('id', groupId);
+
+      if (error) {
+        console.error('Error deleting group:', error);
+        return;
+      }
+
+      await loadData();
+    } catch (err) {
+      console.error('Error deleting group:', err);
     }
   };
 
@@ -110,14 +220,13 @@ function App() {
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
-    // Only clear if we're leaving the group entirely
     const relatedTarget = e.relatedTarget as HTMLElement;
     if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
       setDragOverGroupId(null);
     }
   };
 
-  const handleDrop = (e: React.DragEvent, targetGroupId: string) => {
+  const handleDrop = async (e: React.DragEvent, targetGroupId: string) => {
     e.preventDefault();
 
     if (!draggedGroupId || draggedGroupId === targetGroupId) {
@@ -135,10 +244,18 @@ function App() {
       return;
     }
 
-    // Reorder groups
+    // Reorder groups locally
     const newGroups = [...groups];
     const [draggedGroup] = newGroups.splice(draggedIndex, 1);
     newGroups.splice(targetIndex, 0, draggedGroup);
+
+    // Update sort_order in database
+    for (let i = 0; i < newGroups.length; i++) {
+      await supabase
+        .from('task_groups')
+        .update({ sort_order: i })
+        .eq('id', newGroups[i].id);
+    }
 
     setGroups(newGroups);
     setDraggedGroupId(null);
@@ -151,17 +268,81 @@ function App() {
   };
 
   // Task handlers
-  const handleAddTask = (task: Task) => {
-    setTasks([...tasks, task]);
+  const handleAddTask = async (task: Task) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .insert({
+          group_id: task.group_id,
+          task: task.task || '',
+          owner: task.owner || '',
+          assign: task.assign || '',
+          status: task.status || 'Not Started',
+          create_date: task.create_date || new Date().toISOString().split('T')[0],
+          estimate_date: task.estimate_date || null,
+          notes: task.notes || '',
+          reviewer: task.reviewer || '',
+          review: task.review || '',
+          sort_order: tasks.filter(t => t.group_id === task.group_id).length,
+          locked_fields: {},
+          created_by: user?.id,
+        });
+
+      if (error) {
+        console.error('Error adding task:', error);
+        return;
+      }
+
+      await loadData();
+    } catch (err) {
+      console.error('Error adding task:', err);
+    }
   };
 
-  const handleUpdateTask = (task: Task) => {
-    const newTasks = tasks.map(t => t.id === task.id ? task : t);
-    setTasks(newTasks);
+  const handleUpdateTask = async (task: Task) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          task: task.task,
+          owner: task.owner,
+          assign: task.assign,
+          status: task.status,
+          estimate_date: task.estimate_date || null,
+          notes: task.notes,
+          reviewer: task.reviewer,
+          review: task.review,
+        })
+        .eq('id', task.id);
+
+      if (error) {
+        console.error('Error updating task:', error);
+        return;
+      }
+
+      // Update local state immediately for responsiveness
+      setTasks(tasks.map(t => t.id === task.id ? task : t));
+    } catch (err) {
+      console.error('Error updating task:', err);
+    }
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    setTasks(tasks.filter(t => t.id !== taskId));
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) {
+        console.error('Error deleting task:', error);
+        return;
+      }
+
+      setTasks(tasks.filter(t => t.id !== taskId));
+    } catch (err) {
+      console.error('Error deleting task:', err);
+    }
   };
 
   // Export/Import
@@ -172,21 +353,33 @@ function App() {
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `scrum-project-${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `project-${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         try {
           const imported = JSON.parse(event.target?.result as string);
           if (imported.groups && imported.tasks) {
-            setGroups(imported.groups);
-            setTasks(imported.tasks);
+            // Import groups
+            for (const group of imported.groups) {
+              await supabase.from('task_groups').insert({
+                name: group.name,
+                color: group.color,
+                start_date: group.start_date || group.startDate,
+                end_date: group.end_date || group.endDate,
+                is_expanded: group.is_expanded ?? group.isExpanded ?? true,
+                sort_order: group.sort_order ?? 0,
+                created_by: user?.id,
+              });
+            }
+            // Note: Tasks import needs group ID mapping - simplified here
+            await loadData();
           }
         } catch (error) {
           alert('Invalid JSON file');
@@ -202,6 +395,15 @@ function App() {
     if (isMod) return <span className="role-badge role-mod">Mod</span>;
     return <span className="role-badge role-member">Member</span>;
   };
+
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <div className="loading-spinner"></div>
+        <p>Loading data...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="app" onDragEnd={handleDragEnd}>
@@ -271,6 +473,9 @@ function App() {
           <option value="In Review">In Review</option>
           <option value="Done">Done</option>
         </select>
+        <button className="btn btn-ghost" onClick={loadData} title="Refresh">
+          Refresh
+        </button>
       </div>
 
       <div className="main-content">
